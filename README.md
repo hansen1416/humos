@@ -9,7 +9,7 @@
 
 [//]: # ([![Open In Colab]&#40;https://colab.research.google.com/assets/colab-badge.svg&#41;]&#40;https://colab.research.google.com/drive/1fTQdI2AHEKlwYG9yIb2wqicIMhAa067_?usp=sharing&#41;  [![Hugging Face Spaces]&#40;https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue&#41;]&#40;https://huggingface.co/spaces/ac5113/DECO&#41;)
 
-![teaser](website/static/teaser/teaser_humos.gif)
+![teaser](website/static/teaser/teaser_humos_flat.gif)
 
 [//]: # ([[Project Page]&#40;https://deco.is.tue.mpg.de&#41;] [[Paper]&#40;https://arxiv.org/abs/2309.15273&#41;] [[Video]&#40;https://www.youtube.com/watch?v=o7MLobqAFTQ&#41;] [[Poster]&#40;https://www.dropbox.com/scl/fi/kvhpfnkvga2pt19ayko8u/ICCV2023_DECO_Poster_v2.pptx?rlkey=ihbf3fi6u9j0ha9x1gfk2cwd0&dl=0&#41;] [[License]&#40;https://deco.is.tue.mpg.de/license.html&#41;] [[Contact]&#40;mailto:deco@tue.mpg.de&#41;])
 
