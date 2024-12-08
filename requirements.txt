@@ -4,3 +4,11 @@ scipy
 loguru
 pytorch-lightning==2.2.0.post0
 orjson
+einops
+c3d
+pandas
+BeautifulSoup4
+matplotlib
+configargparse
+flatten_dict
+yacs
