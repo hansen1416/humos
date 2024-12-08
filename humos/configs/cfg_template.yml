@@ -1,0 +1,117 @@
+EXP_NAME: 'test'
+RESUME_CKPT: 'humos/q6zbv2tu/checkpoints/latest-epoch=1599.ckpt' # 160224_humos_auto_normal_yes_joints
+#RESUME_CKPT: 'humos/j2n018lo/checkpoints/latest-epoch=1399.ckpt' # 160224_humos_auto_diff_orient_yes_joints
+#RESUME_CKPT: 'humos/6ebi2tfr/checkpoints/latest-epoch=1399-v1.ckpt' # 160224_humos_auto_diff_trans_yes_joints
+#RESUME_CKPT: 'humos/7752g179/checkpoints/latest-epoch=1199-v1.ckpt' # 160224_humos_auto_diff_all_yes_joints
+OUTPUT_DIR: 'logs'
+CONDOR_DIR: 'condor/'
+LOG_DIR: 'logs'
+VISUALIZE: True
+DEBUG: False
+
+INPUT:
+  DATA: 'humanml3d' #  'humanml3d' or 'kitml' or 'babel'
+
+DATASET:
+  BATCH_SIZE: 60
+  NUM_WORKERS: 8
+
+CHECKPOINT:
+  EVERY_N_EPOCHS: 50
+  SAVE_TOP_K: -1
+
+TRAINING:
+  MAX_EPOCHS: 2000
+  LOG_EVERY_N_STEPS: 50
+  NUM_SANITY_VAL_STEPS: 0
+  CHECK_VAL_EVERY_N_EPOCH: 50
+  DROP_TEXT_ENCODER: True
+  TMR_CYCLE: True
+  TRAIN_FEATS: ["root_orient_6d_root_rel", "pose_6d_root_rel", "trans"] # always keep betas and gender at the end
+#  TRAIN_FEATS: ["root_orient_diff_6d_root_rel", "pose_6d_root_rel", "trans"]
+#  TRAIN_FEATS: ["root_orient_6d_root_rel", "pose_6d_root_rel", "root_trans_diff"]
+#  TRAIN_FEATS: ["root_orient_diff_6d_root_rel", "pose_6d_root_rel", "root_trans_diff"]
+
+TM_LOADER:
+  PRELOAD: False
+  MOTION_LOADER:
+    FPS: 20
+    NFEATS: 135 # 135 for all
+    CANONICALIZE_CROPS: True # This makes dataloading slow and not sure if working
+  NORMALIZER:
+    DISABLE: False
+  SENTENCE_EMBEDDINGS:
+    PRELOAD: True
+    DISABLE: False
+  TOKEN_EMBEDDINGS:
+    PRELOAD: True
+    DISABLE: False
+
+TMR:
+  RUN_CYCLE: True
+  LR: [1e-4, 5e-5, 1e-5]
+  VAE: True
+  TEMPERATURE: 0.1
+  THRESHOLD_SELFSIM: 0.80
+  THRESHOLD_SELFSIM_METRICS: 0.95
+  LOSSES:
+    RECONS: 1.0
+    RECONS_TYPE: ['rotations'] # Apply loss on 'joints' or 'rotations'
+    LATENT: 1.0e-5
+    CYCLE_LATENT: 0.0
+    KL: 0.0
+    CONTRASTIVE: 0.0
+
+    MOTION_PRIOR: 0.0
+#    MOTION_PRIOR: [10.0, 100.0]
+
+    PHYSICS_FLOAT: 1.0
+    PHYSICS_PENETRATE: 1.0
+    PHYSICS_SKATE: 1.0
+#    PHYSICS_FLOAT: 10.0
+#    PHYSICS_PENETRATE: 10.0
+#    PHYSICS_SKATE: 100.0
+
+    DYN_STABILITY: [0.0001, 0.00001]
+#    DYN_STABILITY: [1.0, 10.0]
+
+  MOTION_ENCODER:
+    NFEATS: 135 # 135 for all
+    VAE: True
+    LATENT_DIM: 320 # 256 + 64 (shape latents)
+    FF_SIZE: 1024
+    NUM_LAYERS: 6
+    NUM_HEADS: 4
+    DROPOUT: 0.1
+    ACTIVATION: gelu
+  TEXT_ENCODER:
+    NFEATS: 768
+    VAE: True
+    LATENT_DIM: 256
+    FF_SIZE: 1024
+    NUM_LAYERS: 6
+    NUM_HEADS: 4
+    DROPOUT: 0.1
+    ACTIVATION: gelu
+  MOTION_DECODER:
+    NFEATS: 135 # 135 for all
+    LATENT_DIM: 384 # 320 + 64 (shape latents)
+    FF_SIZE: 1024
+    NUM_LAYERS: 6
+    NUM_HEADS: 4
+    DROPOUT: 0.1
+    ACTIVATION: gelu
+
+BIOMECHANICS:
+  COP_W: 30
+  COP_K: 100
+
+METRICS:
+  DYN_STABILITY: True
+  RECONS: True
+  PHYSICS: True
+  MOTION_PRIOR: False
+
+
+
+
