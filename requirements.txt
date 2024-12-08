@@ -1,0 +1,6 @@
+chumpy
+numpy==1.23.1
+scipy
+loguru
+pytorch-lightning==2.2.0.post0
+orjson
