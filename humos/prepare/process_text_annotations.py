@@ -15,7 +15,6 @@ def process_json(input_file, output_file, data_path):
         full_path = os.path.join(data_path, value["path"]+".tensor")
         if not os.path.exists(full_path):
             # If "path" exists but the file does not exist, remove the entry
-            print(f"File does not exist: {full_path}")
             del annotations[key]
 
     # Save the processed JSON to a new file
@@ -32,9 +31,9 @@ def process_json(input_file, output_file, data_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Process JSON file and remove entries where 'path' file does not exist.")
-    parser.add_argument("--input_file", type=str, default="annotations/humanml3d/annotations_original.json")
-    parser.add_argument("--output_file", type=str, default="annotations/humanml3d/annotations_processed.json")
-    parser.add_argument("--data_path", type=str, default="../datasets/guoh3dfeats")
+    parser.add_argument("--input_file", type=str, default="./humos/annotations/humanml3d/annotations.json")
+    parser.add_argument("--output_file", type=str, default="./humos/annotations/humanml3d/annotations_processed.json")
+    parser.add_argument("--data_path", type=str, default="./datasets/guoh3dfeats")
 
     args = parser.parse_args()
 

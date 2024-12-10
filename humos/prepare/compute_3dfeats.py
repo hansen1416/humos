@@ -107,8 +107,8 @@ def compute_3dfeats(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base_folder", type=str, default="../datasets/pose_data")
-    parser.add_argument("--output_folder", type=str, default="../datasets/guoh3dfeats")
+    parser.add_argument("--base_folder", type=str, default="./datasets/pose_data")
+    parser.add_argument("--output_folder", type=str, default="./datasets/guoh3dfeats")
     parser.add_argument("--fps", type=int, required=True, default=20, help="fps of the input motion")
     parser.add_argument("--force_redo", action="store_true")
     args = parser.parse_args()
