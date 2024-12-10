@@ -32,3 +32,8 @@ echo "Deleting tmp files"
 rm -rf body_models/smplh/tmp/
 echo
 echo "Done!"
+
+echo "Extracting SMPLH npz"
+cd body_models/smplh
+tar xfv ./smplh.tar.xz
+cd ../../
