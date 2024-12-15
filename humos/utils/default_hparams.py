@@ -43,33 +43,33 @@ hparams.TRAINING.TRAIN_FEATS = ["pose_6d", "trans", "betas", "gender"]
 
 # Text Motion Loader hparams
 hparams.TM_LOADER = CN()
-hparams.TM_LOADER.PATH = f'annotations/{hparams.INPUT.DATA}'
+hparams.TM_LOADER.PATH = f'humos/annotations/{hparams.INPUT.DATA}'
 hparams.TM_LOADER.PRELOAD = True
 
 # Motion Loader hparams
 hparams.TM_LOADER.MOTION_LOADER = CN()
-hparams.TM_LOADER.MOTION_LOADER.BASE_DIR = '../datasets/guoh3dfeats'
+hparams.TM_LOADER.MOTION_LOADER.BASE_DIR = './datasets/humos3dfeats'
 hparams.TM_LOADER.MOTION_LOADER.FPS =20
 hparams.TM_LOADER.MOTION_LOADER.NFEATS = 146
 hparams.TM_LOADER.MOTION_LOADER.CANONICALIZE_CROPS = False
 
 # Normalizer hparams
 hparams.TM_LOADER.NORMALIZER = CN()
-hparams.TM_LOADER.NORMALIZER.BASE_DIR = f'stats/{hparams.INPUT.DATA}/guo3dfeats'
+hparams.TM_LOADER.NORMALIZER.BASE_DIR = f'humos/stats/{hparams.INPUT.DATA}/humos3dfeats'
 hparams.TM_LOADER.NORMALIZER.EPS = 1e-12
 hparams.TM_LOADER.NORMALIZER.DISABLE = False
 
 # Sentence Embeddings hparams
 hparams.TM_LOADER.SENTENCE_EMBEDDINGS = CN()
 hparams.TM_LOADER.SENTENCE_EMBEDDINGS.MODELNAME = 'sentence-transformers/all-mpnet-base-v2'
-hparams.TM_LOADER.SENTENCE_EMBEDDINGS.PATH = f'annotations/{hparams.INPUT.DATA}'
+hparams.TM_LOADER.SENTENCE_EMBEDDINGS.PATH = f'humos/annotations/{hparams.INPUT.DATA}'
 hparams.TM_LOADER.SENTENCE_EMBEDDINGS.PRELOAD = True
 hparams.TM_LOADER.SENTENCE_EMBEDDINGS.DISABLE = False
 
 # Token Embeddings hparams
 hparams.TM_LOADER.TOKEN_EMBEDDINGS = CN()
 hparams.TM_LOADER.TOKEN_EMBEDDINGS.MODELNAME = 'distilbert-base-uncased'
-hparams.TM_LOADER.TOKEN_EMBEDDINGS.PATH = f'annotations/{hparams.INPUT.DATA}'
+hparams.TM_LOADER.TOKEN_EMBEDDINGS.PATH = f'humos/annotations/{hparams.INPUT.DATA}'
 hparams.TM_LOADER.TOKEN_EMBEDDINGS.PRELOAD = True
 hparams.TM_LOADER.TOKEN_EMBEDDINGS.DISABLE = False
 

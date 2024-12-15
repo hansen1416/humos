@@ -33,7 +33,7 @@ if __name__ == "__main__":
         description="Process JSON file and remove entries where 'path' file does not exist.")
     parser.add_argument("--input_file", type=str, default="./humos/annotations/humanml3d/annotations.json")
     parser.add_argument("--output_file", type=str, default="./humos/annotations/humanml3d/annotations_processed.json")
-    parser.add_argument("--data_path", type=str, default="./datasets/guoh3dfeats")
+    parser.add_argument("--data_path", type=str, default="./datasets/humos3dfeats")
 
     args = parser.parse_args()
 

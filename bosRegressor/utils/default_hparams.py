@@ -60,14 +60,14 @@ hparams.TM_LOADER.PRELOAD = True
 
 # Motion Loader hparams
 hparams.TM_LOADER.MOTION_LOADER = CN()
-hparams.TM_LOADER.MOTION_LOADER.BASE_DIR = '../datasets/guoh3dfeats'
+hparams.TM_LOADER.MOTION_LOADER.BASE_DIR = '../datasets/humos3dfeats'
 hparams.TM_LOADER.MOTION_LOADER.FPS =20
 hparams.TM_LOADER.MOTION_LOADER.NFEATS = 146
 hparams.TM_LOADER.MOTION_LOADER.CANONICALIZE_CROPS = False
 
 # Normalizer hparams
 hparams.TM_LOADER.NORMALIZER = CN()
-hparams.TM_LOADER.NORMALIZER.BASE_DIR = f'../humos/stats/{hparams.INPUT.DATA}/guo3dfeats'
+hparams.TM_LOADER.NORMALIZER.BASE_DIR = f'../humos/stats/{hparams.INPUT.DATA}/humos3dfeats'
 hparams.TM_LOADER.NORMALIZER.EPS = 1e-12
 hparams.TM_LOADER.NORMALIZER.DISABLE = False
 

@@ -15,10 +15,10 @@ def motion_stats(args):
     import humos.src.prepare  # noqa
 
     motion_loader = AMASSMotionLoader(
-            base_dir='./datasets/guoh3dfeats',
+            base_dir='./datasets/humos3dfeats',
             fps =20.0,
             normalizer=Normalizer(
-                base_dir=f'humos/stats/{args.data}/guo3dfeats',
+                base_dir=f'humos/stats/{args.data}/humos3dfeats',
                 eps=1e-12,
                 disable=True,
             ),
