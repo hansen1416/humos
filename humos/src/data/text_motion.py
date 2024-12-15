@@ -65,7 +65,7 @@ class TextMotionDataset(Dataset):
         self.keyids = [keyid for keyid in self.keyids if keyid in self.annotations]
         if "test" in split:
             # open mld files
-            mdl_test_keyids = "./mld_test_split_keyids.txt"
+            mdl_test_keyids = "./datasets/splits/mld_test_split_keyids.txt"
             with open(mdl_test_keyids, "r") as f:
                 mdl_test_keyids = f.readlines()
                 mdl_test_keyids = [x.strip() for x in mdl_test_keyids]
