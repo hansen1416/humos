@@ -1,5 +1,5 @@
 chumpy
-numpy==1.23.1
+numpy==1.26.4
 scipy
 loguru
 pytorch-lightning==2.2.0.post0
@@ -12,4 +12,6 @@ matplotlib
 configargparse
 flatten_dict
 yacs
+smplx
 git+https://github.com/nghorbani/human_body_prior.git
+sk-video
