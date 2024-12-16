@@ -1,6 +1,6 @@
 from aitviewer.models.smpl import SMPLLayer
 
-ESSENTIALS_DIR = '../bosRegressor/data//essentials'
+ESSENTIALS_DIR = './bosRegressor/data/essentials'
 
 PRESSURE_THRESH = 0.9
 CONTACT_THRESH = 0.05
@@ -14,7 +14,7 @@ male_bm = SMPLLayer(model_type="smplh", gender="male")
 
 SMPLH_BODY_JOINTS = 22
 
-SMPL_PATH = "../body_models/smpl"
+SMPL_PATH = "./body_models/smpl"
 
 NUM_BETAS = 10
 

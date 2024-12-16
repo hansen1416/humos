@@ -182,7 +182,7 @@ class CYCLIC_TMR(TEMOS):
                                                               device=device)
 
 
-        identity_pkl = "./identities/identity_dict_test_split_smpl.pkl"
+        identity_pkl = "./datasets/splits/identity_dict_test_split_smpl.pkl"
         with open(identity_pkl, "rb") as f:
             self.identity_dict_smpl = pkl.load(f)
 
