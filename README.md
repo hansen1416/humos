@@ -11,7 +11,7 @@
 
 ![teaser](website/static/teaser/teaser_humos_flat.gif)
 
-[[Project Page](https://deco.is.tue.mpg.de)] [[Paper](https://arxiv.org/abs/2309.15273)] [[Video](https://www.youtube.com/watch?v=o7MLobqAFTQ)] [[Poster](https://www.dropbox.com/scl/fi/kvhpfnkvga2pt19ayko8u/ICCV2023_DECO_Poster_v2.pptx?rlkey=ihbf3fi6u9j0ha9x1gfk2cwd0&dl=0)] [[License](https://deco.is.tue.mpg.de/license.html)] [[Contact](mailto:deco@tue.mpg.de)]
+[[Project Page](https://carstenepic.github.io/humos/)] [[Paper](https://arxiv.org/abs/2409.03944)] [[Video](https://www.youtube.com/watch?v=yLXX7TxBA4o)] [[Poster](https://www.dropbox.com/scl/fi/nxtj4svwe5dcfvaffou0u/ECCV2024_HUMOS_Poster_v2.pdf?rlkey=3cku1bxgio9ec7o4bumetqiu7&e=1&st=un1ub1c9&dl=0)] [[License]()] [[Contact](mailto:shashank.tripathi123@gmail.com)]
 
 ## News :triangular_flag_on_post:
 
