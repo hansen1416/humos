@@ -27,6 +27,7 @@ def get_text_motion_dataset(hparams, split):
         text_to_token_emb=text_to_token_emb,
         split=split,
         preload=hparams.TM_LOADER.PRELOAD,
+        demo=hparams.DEMO,
     )
 
     return dataset

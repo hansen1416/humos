@@ -14,6 +14,7 @@ hparams.SEED = 1234
 hparams.DEVICE = 'cuda'
 hparams.VISUALIZE = False
 hparams.DEBUG = False
+hparams.DEMO = False
 
 # Input configurations
 hparams.INPUT = CN()

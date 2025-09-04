@@ -87,6 +87,7 @@ class CYCLIC_TMR(TEMOS):
             num_val_videos: int = 3,
             max_vid_rows: int = 3,
             run_cycle: bool = True,
+            demo: bool = False,
             renderer: HeadlessRenderer = None,
     ) -> None:
         # Initialize module like TEMOS
@@ -151,6 +152,7 @@ class CYCLIC_TMR(TEMOS):
         # self.renderer.scene.add_light(self.light)
 
         self.run_cycle = run_cycle
+        self.demo = demo
 
         # Get smpl body models
         self.bm_male = SMPLLayer(model_type="smplh", gender="male", device=device)
