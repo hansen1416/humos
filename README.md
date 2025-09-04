@@ -147,11 +147,10 @@ python humos/train.py --cfg humos/configs/cfg_template.yml
 ```
 
 ## Running HUMOS DEMO
-The following script runs the 
+The following script runs the HUMOS demo by randomly mixing AMASS identities and saves the sequence of meshes as an obj at `./demo/humos_{ckpt_name}_fit_objs/pred`. The sequences are also visualized in Wandb.
 ```shell
 python humos/train.py --cfg humos/configs/cfg_template_demo.yml
 ```
-
 
 ## Citing
 
