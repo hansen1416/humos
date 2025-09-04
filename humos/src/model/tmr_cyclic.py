@@ -142,11 +142,12 @@ class CYCLIC_TMR(TEMOS):
         # cam_dir = C.export_dir + "/camera_params/"
         # cam_dict = joblib.load(cam_dir + "cam_params.pkl")
         self.camera.load_cam()
-        if self.demo:
-            # Adjust camera parameters to fit the whole body
-            self.camera.ZOOM_FACTOR = 0.7  # Try values < 1 to zoom out
-            self.camera.position = [0, 1.5, 5]  # Move camera back and up
-            self.camera.fov = 60  # Increase field of view if needed
+
+        # Adjust camera parameters to fit the whole body
+        self.camera.ZOOM_FACTOR = 0.7
+        self.camera.position = [0, 1.5, 5]  # Move camera back and up
+        self.camera.fov = 60  # Increase field of view
+
         self.renderer.scene.camera = self.camera
 
         # # set custom lights
