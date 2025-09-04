@@ -4,6 +4,8 @@ import wandb
 import numpy as np
 import torch
 from torch import Tensor
+import trimesh
+from pathlib import Path
 
 
 def copy2cpu(tensor):
@@ -84,6 +86,21 @@ def visualize_joints(joints, name='joints'):
         # close
         plt.close()
 
+def save_demo_meshes(m_verts_B_giv_A, faces, keyids, target_keyids, ckpt_name="DEMO", num_seqs=20):
+    # This function saves the motion objs created for the demo
+    out_dir = Path(
+        f"./demo/humos_{ckpt_name}_fit_objs/pred")
+    # create out_dir if doesn't exist
+    for i, (keyid, target_keyid) in enumerate(zip(keyids, target_keyids)):
+        if i>num_seqs:
+            break
+        vertices = m_verts_B_giv_A[i].cpu().numpy()
+        out_path = out_dir / f"reconstruction_{keyid}_{target_keyid}_objs"
+        out_path.mkdir(exist_ok=True, parents=True)
+        for seq_id, vert in enumerate(vertices):
+            mesh = trimesh.Trimesh(vertices=vert, faces=faces, process=False)
+            mesh.export(out_path / f"frame_{seq_id:04d}.obj")
+        print(f"Saved {out_path}")
 
 def update_best_metrics():
     down_val_keys = ["val_step/loss_epoch", "val_step/motion_prior_epoch", "val_step/joint_recons_epoch",

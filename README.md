@@ -15,7 +15,7 @@
 
 ## News :triangular_flag_on_post:
 
-- [2024/12/10] Released training and inference code for HUMOS. DEMO code coming soon...
+- [2025/07/10] Released training and inference code for HUMOS
 
 ## Installation and Setup
 
@@ -144,6 +144,12 @@ Currently, the motions are rendered using the AitViewer and visualized in Wandb.
 ## Run HUMOS training
 ```shell
 python humos/train.py --cfg humos/configs/cfg_template.yml
+```
+
+## Running HUMOS DEMO
+The following script runs the 
+```shell
+python humos/train.py --cfg humos/configs/cfg_template_demo.yml
 ```
 
 

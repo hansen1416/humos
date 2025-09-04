@@ -36,7 +36,7 @@ class TextMotionDataset(Dataset):
         min_seconds: float = 2.0,
         max_seconds: float = 10.0,
         preload: bool = True,
-        demo: bool = False, 
+        demo: bool = False,
         tiny: bool = False,
     ):
         if tiny:
@@ -75,10 +75,9 @@ class TextMotionDataset(Dataset):
             # remove the keyids with _M
             self.keyids = [keyid for keyid in self.keyids if "M" not in keyid]
         if demo:
-            self.keyids_A = ['000073', '000419', '001262', '004117']
-            # repeat keyids 60 times
-            # self.keyids_A = [item for item in self.keyids_A for i in range(100)]
-            self.keyids_B = ['008173', '010148', '011569', '001176', '003224', '011412']
+            self.keyids = ['000073', '000419', '001262', '004117']
+            # Repeat this same list 25 times to have a larger dataset
+            self.keyids = [keyid for _ in range(25) for keyid in self.keyids]
         if preload:
             for _ in tqdm(self, desc="Preloading the dataset"):
                 continue

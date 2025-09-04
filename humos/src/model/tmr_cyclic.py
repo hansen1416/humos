@@ -18,7 +18,7 @@ from bosRegressor.core.biomechanics import BiomechanicalEvaluator, setup_biomech
 from humos.utils import constants
 from humos.utils.fk import ForwardKinematicsLayer
 from humos.utils.mesh_utils import smplh_breakdown
-from humos.utils.misc_utils import get_rgba_colors, update_best_metrics
+from humos.utils.misc_utils import get_rgba_colors, update_best_metrics, save_demo_meshes
 from .losses import InfoNCE_with_filtering, MotionPriorLoss, DynStabilityLoss
 from .metrics import all_physics_metrics, calculate_recons_metrics, calculate_dyn_stability_metric, MotionPriorMetric
 from .temos import TEMOS
@@ -105,10 +105,11 @@ class CYCLIC_TMR(TEMOS):
         )
 
         self.fps = fps
+        self.demo = demo
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.num_val_videos = num_val_videos
-        self.max_vid_rows = max_vid_rows
+        self.num_val_videos = num_val_videos if not self.demo else 5
+        self.max_vid_rows = max_vid_rows if not self.demo else 4
 
         # adding the contrastive loss
         self.contrastive_loss_fn = InfoNCE_with_filtering(
@@ -141,6 +142,11 @@ class CYCLIC_TMR(TEMOS):
         # cam_dir = C.export_dir + "/camera_params/"
         # cam_dict = joblib.load(cam_dir + "cam_params.pkl")
         self.camera.load_cam()
+        if self.demo:
+            # Adjust camera parameters to fit the whole body
+            self.camera.ZOOM_FACTOR = 0.7  # Try values < 1 to zoom out
+            self.camera.position = [0, 1.5, 5]  # Move camera back and up
+            self.camera.fov = 60  # Increase field of view if needed
         self.renderer.scene.camera = self.camera
 
         # # set custom lights
@@ -152,7 +158,6 @@ class CYCLIC_TMR(TEMOS):
         # self.renderer.scene.add_light(self.light)
 
         self.run_cycle = run_cycle
-        self.demo = demo
 
         # Get smpl body models
         self.bm_male = SMPLLayer(model_type="smplh", gender="male", device=device)
@@ -391,11 +396,21 @@ class CYCLIC_TMR(TEMOS):
         # mask_B = motion_x_dict_B["mask"]
         # ref_motions_B = motion_x_dict_B["x"]
         if return_all:
-            # Get target shape
-            identity_B = torch.zeros_like(identity_A)
-            for i, keyid_A in enumerate(keyids_A):
-                identity = self.identity_dict_smpl[keyid_A]
-                identity_B[i] = torch.FloatTensor(identity["identity_B_norm"]).to(self.device)
+            if self.demo:
+                # Get target shape
+                identity_B = torch.zeros_like(identity_A)
+                # {"fat_man": "008173", "fat_woman": "010148", "short_man": "011569", "short_woman": "001176", "tall_man": "003224", "fit_man": "011412"}
+                keyids_B = ['008173', '010148', '001176', '003224', '011412']
+                keyids_B = [keyid for _ in range(int(len(keyids_A)/len(keyids_B))) for keyid in keyids_B]
+                for i, keyid_B in enumerate(keyids_B):
+                    identity = self.identity_dict_smpl[keyid_B]
+                    identity_B[i] = torch.FloatTensor(identity["identity_B_norm"]).to(self.device)
+            else:
+                # Get target shape
+                identity_B = torch.zeros_like(identity_A)
+                for i, keyid_A in enumerate(keyids_A):
+                    identity = self.identity_dict_smpl[keyid_A]
+                    identity_B[i] = torch.FloatTensor(identity["identity_B_norm"]).to(self.device)
         else:
             identity_B = motion_x_dict_B["identity"]  # these include betas + gender
 
@@ -708,6 +723,9 @@ class CYCLIC_TMR(TEMOS):
             for k, v in losses.items():
                 if torch.isnan(v).any():
                     print(f"{k} contains nan values")
+
+        if self.demo:
+            save_demo_meshes(m_verts_B_giv_A, self.bm_male.faces.cpu().numpy(), keyids_A, keyids_B, ckpt_name="DEMO", num_seqs=5)
 
         # # check if dyn_stability has nans
         # for k, v in losses.items():
