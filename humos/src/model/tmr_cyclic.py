@@ -910,6 +910,7 @@ class CYCLIC_TMR(TEMOS):
                 [x[metric_name] * 100 for x in self.validation_step_metrics]
             )
             wandb.log({f"metrics/{metric_name}_epoch": all_metrics[metric_name]})
+            print(f"{metric_name}: {all_metrics[metric_name]}")
 
         # Calculation motion prior metrics
         if self.compute_metrics["motion_prior"]:

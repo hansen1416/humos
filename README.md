@@ -130,6 +130,17 @@ The resulting structure for the ```body_models``` directory should look like thi
 python humos/test.py --cfg humos/configs/cfg_template_test.yml
 ```
 
+In case you want to only visualize some sample results without running metric evaluation, you can set the following flags to false in `humos/configs/cfg_template_test.yml`. This is typically faster.
+```yaml
+METRICS:
+  DYN_STABILITY: False
+  RECONS: False
+  PHYSICS: False
+  MOTION_PRIOR: False
+```
+
+Currently, the motions are rendered using the AitViewer and visualized in Wandb. You can change the visualizer to whatever you prefer by modifying the `on_validation_epoch_end()` function in `humos/src/model/tmr_cyclic.py`.
+
 ## Run HUMOS training
 ```shell
 python humos/train.py --cfg humos/configs/cfg_template.yml
