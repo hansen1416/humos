@@ -152,6 +152,21 @@ The following script runs the HUMOS demo by randomly mixing AMASS identities and
 python humos/train.py --cfg humos/configs/cfg_template_demo.yml
 ```
 
+<table>
+    <tr>
+        <td align="center"><b>Generate videos for identity B</b></td>
+        <td align="center"><b>Generated video for identity B overlaid with input motion A</b></td>
+    </tr>
+    <tr>
+        <td>
+            <video src="assets/val_videos_B_giv_A.mp4" controls width="350" autoplay loop muted></video>
+        </td>
+        <td>
+            <video src="assets/olay_videos_B_giv_A.mp4" controls width="350" autoplay loop muted></video>
+        </td>
+    </tr>
+</table>
+
 ## Citing
 
 If you find this code useful for your research, please consider citing the following papers:
