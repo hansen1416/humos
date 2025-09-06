@@ -159,10 +159,10 @@ python humos/train.py --cfg humos/configs/cfg_template_demo.yml
     </tr>
     <tr>
         <td>
-            <video src="assets/val_videos_B_giv_A.mp4" controls width="350" autoplay loop muted></video>
+            <img src="assets/val_videos_B_giv_A.gif" width="350" alt="Generate videos for identity B" />
         </td>
         <td>
-            <video src="assets/olay_videos_B_giv_A.mp4" controls width="350" autoplay loop muted></video>
+            <img src="assets/olay_videos_B_giv_A.gif" width="350" alt="Generated video for identity B overlaid with input motion A" />
         </td>
     </tr>
 </table>
