@@ -23,7 +23,7 @@ def extract_h3d(feats):
 
 def compute_3dfeats(args):
     base_folder = args.base_folder  # datasets/pose_data
-    output_folder = args.output_folder  # datasets/guoh3dfeats
+    output_folder = args.output_folder  # datasets/humos3dfeats
     force_redo = args.force_redo
 
     output_folder_M = os.path.join(output_folder, "M")
@@ -107,8 +107,8 @@ def compute_3dfeats(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base_folder", type=str, default="../datasets/pose_data")
-    parser.add_argument("--output_folder", type=str, default="../datasets/guoh3dfeats")
+    parser.add_argument("--base_folder", type=str, default="./datasets/pose_data")
+    parser.add_argument("--output_folder", type=str, default="./datasets/humos3dfeats")
     parser.add_argument("--fps", type=int, required=True, default=20, help="fps of the input motion")
     parser.add_argument("--force_redo", action="store_true")
     args = parser.parse_args()

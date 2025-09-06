@@ -36,6 +36,7 @@ class TextMotionDataset(Dataset):
         min_seconds: float = 2.0,
         max_seconds: float = 10.0,
         preload: bool = True,
+        demo: bool = False,
         tiny: bool = False,
     ):
         if tiny:
@@ -65,7 +66,7 @@ class TextMotionDataset(Dataset):
         self.keyids = [keyid for keyid in self.keyids if keyid in self.annotations]
         if "test" in split:
             # open mld files
-            mdl_test_keyids = "./mld_test_split_keyids.txt"
+            mdl_test_keyids = "./datasets/splits/mld_test_split_keyids.txt"
             with open(mdl_test_keyids, "r") as f:
                 mdl_test_keyids = f.readlines()
                 mdl_test_keyids = [x.strip() for x in mdl_test_keyids]
@@ -73,7 +74,10 @@ class TextMotionDataset(Dataset):
             self.keyids = [keyid for keyid in self.keyids if keyid in mdl_test_keyids]
             # remove the keyids with _M
             self.keyids = [keyid for keyid in self.keyids if "M" not in keyid]
-
+        if demo:
+            self.keyids = ['000073', '000419', '001262', '004117']
+            # Repeat this same list 25 times to have a larger dataset
+            self.keyids = [keyid for _ in range(25) for keyid in self.keyids]
         if preload:
             for _ in tqdm(self, desc="Preloading the dataset"):
                 continue

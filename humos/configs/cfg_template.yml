@@ -1,8 +1,5 @@
 EXP_NAME: 'test'
 RESUME_CKPT: 'humos/q6zbv2tu/checkpoints/latest-epoch=1599.ckpt' # 160224_humos_auto_normal_yes_joints
-#RESUME_CKPT: 'humos/j2n018lo/checkpoints/latest-epoch=1399.ckpt' # 160224_humos_auto_diff_orient_yes_joints
-#RESUME_CKPT: 'humos/6ebi2tfr/checkpoints/latest-epoch=1399-v1.ckpt' # 160224_humos_auto_diff_trans_yes_joints
-#RESUME_CKPT: 'humos/7752g179/checkpoints/latest-epoch=1199-v1.ckpt' # 160224_humos_auto_diff_all_yes_joints
 OUTPUT_DIR: 'logs'
 CONDOR_DIR: 'condor/'
 LOG_DIR: 'logs'

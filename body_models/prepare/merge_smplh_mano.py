@@ -74,9 +74,15 @@ def merge_models(smplh_fn, mano_left_fn, mano_right_fn,
     modelname = osp.split(smplh_fn)[1]
     parent_folder = osp.split(osp.split(smplh_fn)[0])[1]
     if "female" in parent_folder + "_" + modelname.lower():
-        out_fn = "SMPLH_FEMALE.npz"
+        if smplh_fn.endswith('.npz'):
+            out_fn = "SMPLH_FEMALE.npz"
+        else:
+            out_fn = "SMPLH_FEMALE.pkl"
     elif "male" in parent_folder + "_" + modelname.lower():
-        out_fn = "SMPLH_MALE.npz"
+        if smplh_fn.endswith('.npz'):
+            out_fn = "SMPLH_MALE.npz"
+        else:
+            out_fn = "SMPLH_MALE.pkl"
     elif "neutral" in parent_folder + "_" + modelname.lower():
         out_fn = "SMPLH_NEUTRAL.npz"
     else:
@@ -99,9 +105,11 @@ def merge_models(smplh_fn, mano_left_fn, mano_right_fn,
     print('Saving to {}'.format(out_path))
 
     # np.savez(out_path, output_data)
-    np.savez_compressed(out_path, **output_data)
-    # with open(out_path, 'wb') as output_file:
-    #     pickle.dump(output_data, output_file)
+    if smplh_fn.endswith('.npz'):
+        np.savez_compressed(out_path, **output_data)
+    else:
+        with open(out_path, 'wb') as output_file:
+            pickle.dump(output_data, output_file)
 
 
 if __name__ == '__main__':

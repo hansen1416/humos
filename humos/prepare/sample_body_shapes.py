@@ -21,7 +21,7 @@ def main():
     random_dict = create_random_dict()
 
     # Save the dictionary as JSON for each run
-    with open(f"./stats/random_body_shapes.json", "w") as json_file:
+    with open(f"./humos/stats/random_body_shapes.json", "w") as json_file:
         json.dump(random_dict, json_file)
 
 if __name__ == "__main__":

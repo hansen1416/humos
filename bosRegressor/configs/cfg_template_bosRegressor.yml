@@ -1,0 +1,51 @@
+EXP_NAME: 'bosRegressor_test'
+OUTPUT_DIR: 'logs'
+CONDOR_DIR: 'condor/'
+LOG_DIR: 'logs'
+VISUALIZE: True
+DEBUG: False
+
+INPUT:
+  DATA: 'humanml3d' #  'humanml3d' or 'kitml' or 'babel'
+  PRESSURE_XML_FOLDER: 'data/MOYO/20220923_20220926_with_hands/pressure/train/xml'
+  PRESSURE_CSV_FOLDER: 'data/MOYO/20220923_20220926_with_hands/pressure/train/single_csv'
+
+DATASET:
+  BATCH_SIZE: 10
+  NUM_WORKERS: 8
+
+BIOMECHANICS:
+  STENCIL_SIZE: 3
+
+TRAINING:
+  MODEL_TYPE: 'mlp'
+  NUM_INPUT_FEATS: 147
+  TRAIN_FEATS: [ "root_orient_6d_root_rel", "pose_6d_root_rel", "trans" ]
+  NUM_EPOCHS: 20000
+  NUM_EARLY_STOP: 20000
+  SUMMARY_STEPS: 5
+  CHECKPOINT_EPOCHS: 5
+  BEST_MODEL_PATH: '/efs/shashank.tripathi/vsc-remote/tipman/tipman/bos_regressor_logs/181023_bos_dist_training_smplx_params_input_bos_dist_model_epoch_100.pth'
+  LOSS_WEIGHTS: 1.
+
+OPTIMIZER:
+  TYPE: 'adam'
+  LR: [1e-4]
+  NUM_UPDATE_LR: 300
+  LR_GAMMA: 0.9
+  NUM_PREV_STEPS: 50
+  MAX_ITERS: [1000]
+  MAX_EPOCHS: [1]
+  WEIGHT_DECAY: 0.0
+  SLOPE_TOL: 0.0
+
+TM_LOADER:
+  PRELOAD: False
+  MOTION_LOADER:
+    FPS: 20
+    NFEATS: 135 # 135 for all
+    CANONICALIZE_CROPS: True # This makes dataloading slow and not sure if working
+  NORMALIZER:
+    DISABLE: False
+
+

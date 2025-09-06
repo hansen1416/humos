@@ -1,0 +1,3 @@
+[submodule "aitviewer_humos"]
+	path = aitviewer_humos
+	url = https://github.com/sha2nkt/aitviewer_humos.git

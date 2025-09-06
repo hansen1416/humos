@@ -15,10 +15,10 @@ def motion_stats(args):
     import humos.src.prepare  # noqa
 
     motion_loader = AMASSMotionLoader(
-            base_dir='../datasets/guoh3dfeats',
+            base_dir='./datasets/humos3dfeats',
             fps =20.0,
             normalizer=Normalizer(
-                base_dir=f'stats/{args.data}/guo3dfeats',
+                base_dir=f'humos/stats/{args.data}/humos3dfeats',
                 eps=1e-12,
                 disable=True,
             ),
@@ -27,7 +27,7 @@ def motion_stats(args):
 
     text_to_send_emb = SentenceEmbeddings(
             modelname='sentence-transformers/all-mpnet-base-v2',
-            path=f'annotations/{args.data}',
+            path=f'humos/annotations/{args.data}',
             device=args.device,
             preload=True,
             disable=True,
@@ -35,14 +35,14 @@ def motion_stats(args):
 
     text_to_token_emb = TokenEmbeddings(
             modelname='distilbert-base-uncased',
-            path=f'annotations/{args.data}',
+            path=f'humos/annotations/{args.data}',
             device=args.device,
             preload=True,
             disable=True,
         )
 
     train_dataset = TextMotionDataset(
-        path=f'annotations/{args.data}',
+        path=f'humos/annotations/{args.data}',
         motion_loader=motion_loader,
         text_to_sent_emb=text_to_send_emb,
         text_to_token_emb=text_to_token_emb,
@@ -65,8 +65,6 @@ def motion_stats(args):
             if k not in accumulator:
                 accumulator[k] = []
             accumulator[k].append(v)
-
-    import ipdb; ipdb.set_trace()
 
     mean_feat_dict = {k: torch.stack(v).mean(0)[0] for k, v in accumulator.items()}
     std_feat_dict = {k: torch.stack(v).std(0)[0] for k, v in accumulator.items()}

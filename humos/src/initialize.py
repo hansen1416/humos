@@ -129,6 +129,7 @@ def initialize_model(hparams, ckpt_path=None, renderer=None):
             threshold_selfsim=hparams.TMR.THRESHOLD_SELFSIM,
             threshold_selfsim_metrics=hparams.TMR.THRESHOLD_SELFSIM_METRICS,
             run_cycle=hparams.TMR.RUN_CYCLE,
+            demo=hparams.DEMO,
             renderer=renderer,
         )
     else:

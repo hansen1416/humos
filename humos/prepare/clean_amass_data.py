@@ -50,9 +50,9 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data', type=str, default='../datasets/pose_data',
+    parser.add_argument('--data', type=str, default='./datasets/pose_data',
                         help='Root dir of processed AMASS data')
-    parser.add_argument('--backup', type=str, default='../datasets/pose_data_backup',
+    parser.add_argument('--backup', type=str, default='./datasets/pose_data_backup',
                         help='Root directory to save removed data to.')
     parser.add_argument("--force_redo", action="store_true")
 
