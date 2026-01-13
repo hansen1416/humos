@@ -1,1 +1,7 @@
 logs/
+body_models/smpl/
+body_models/smplh/
+datasets/amass_data/
+datasets/pose_data/
+humos.egg-info/
+__pycache__/

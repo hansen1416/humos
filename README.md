@@ -39,6 +39,15 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+4. chumpy and human_body_prior is outdated, also we should remove numpy=xxx
+
+    - in case chumpy instrall failed with **ModuleNotFoundError: No module named 'pip'**
+    Try install from local `python -m pip install -e ../chumpy --no-build-isolation`.
+    `python -m pip install -U pip setuptools wheel` might not be necessary
+
+    - install an older version of human prior.
+    python -m pip install --no-build-isolation "git+https://github.com/nghorbani/human_body_prior.git@4c246d8a83ce16d3cff9c79dcf04d81fa440a6bc"
+
 ### Download pretrained model checkpoints
 
 This script downloads two model checkpoints:
