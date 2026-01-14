@@ -7,3 +7,5 @@ datasets/humos3dfeats/
 datasets/pose_data_backup/
 humos.egg-info/
 __pycache__/
+wandb
+humos/stats/

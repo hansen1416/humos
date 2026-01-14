@@ -1,13 +1,13 @@
-EXP_NAME: 'test'
-RESUME_CKPT: 'humos/5bhgscl8/checkpoints/latest-epoch=199.ckpt' # best trained model from 030324
-OUTPUT_DIR: 'logs'
-CONDOR_DIR: 'condor/'
-LOG_DIR: 'logs'
+EXP_NAME: "test"
+RESUME_CKPT: "humos/5bhgscl8/checkpoints/latest-epoch=199.ckpt" # best trained model from 030324
+OUTPUT_DIR: "logs"
+CONDOR_DIR: "condor/"
+LOG_DIR: "logs"
 VISUALIZE: False
 DEBUG: False
 
 INPUT:
-  DATA: 'humanml3d' #  'humanml3d' or 'kitml' or 'babel'
+  DATA: "humanml3d" #  'humanml3d' or 'kitml' or 'babel'
 
 DATASET:
   BATCH_SIZE: 100
@@ -53,24 +53,24 @@ TMR:
   THRESHOLD_SELFSIM_METRICS: 0.95
   LOSSES:
     RECONS: 1.0
-    RECONS_TYPE: 'rotations' # Apply loss on 'joints' or 'rotations'
+    RECONS_TYPE: "rotations" # Apply loss on 'joints' or 'rotations'
     LATENT: 1.0e-5
     CYCLE_LATENT: 1.0e-2
     KL: 1.0e-5
     CONTRASTIVE: 0.0
 
     MOTION_PRIOR: 0.0
-#    MOTION_PRIOR: [10.0, 100.0]
+    #    MOTION_PRIOR: [10.0, 100.0]
 
     PHYSICS_FLOAT: 0.0
     PHYSICS_PENETRATE: 0.0
     PHYSICS_SKATE: 0.0
-#    PHYSICS_FLOAT: 10.0
-#    PHYSICS_PENETRATE: 10.0
-#    PHYSICS_SKATE: 100.0
+    #    PHYSICS_FLOAT: 10.0
+    #    PHYSICS_PENETRATE: 10.0
+    #    PHYSICS_SKATE: 100.0
 
     DYN_STABILITY: 0.0
-#    DYN_STABILITY: [1.0, 10.0]
+  #    DYN_STABILITY: [1.0, 10.0]
 
   MOTION_ENCODER:
     NFEATS: 135 # 135 for all
@@ -104,11 +104,7 @@ BIOMECHANICS:
   COP_K: 100
 
 METRICS:
-  DYN_STABILITY: True
-  RECONS: True
-  PHYSICS: True
-  MOTION_PRIOR: True
-
-
-
-
+  DYN_STABILITY: False
+  RECONS: False
+  PHYSICS: False
+  MOTION_PRIOR: False
