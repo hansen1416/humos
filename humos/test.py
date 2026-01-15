@@ -12,7 +12,7 @@ from humos.src.initialize import initialize_dataloaders, initialize_model
 from humos.utils.config import parse_args, run_grid_search_experiments
 
 os.system("Xvfb :13 -screen 1 640x480x24 &")
-os.environ['DISPLAY'] = ":13"
+os.environ["DISPLAY"] = ":13"
 
 import pytorch_lightning as pl
 
@@ -60,7 +60,8 @@ def test(hparams):
         drop_last=True,
     )
 
-    ait_renderer = HeadlessRenderer(size=(320, 240))
+    # ait_renderer = HeadlessRenderer(size=(320, 240))
+    ait_renderer = None
     # Get the TMR model
     model = initialize_model(hparams, ckpt, renderer=ait_renderer)
 
@@ -74,10 +75,7 @@ def test(hparams):
 
     pl_callbacks = [
         pl.callbacks.ModelCheckpoint(
-            filename="latest-{epoch}",
-            every_n_epochs=1,
-            save_top_k=1,
-            save_last=True
+            filename="latest-{epoch}", every_n_epochs=1, save_top_k=1, save_last=True
         ),
         pl.callbacks.ModelCheckpoint(
             filename="latest-{epoch}",
@@ -85,7 +83,7 @@ def test(hparams):
             mode="max",
             every_n_epochs=hparams.CHECKPOINT.EVERY_N_EPOCHS,
             save_top_k=hparams.CHECKPOINT.SAVE_TOP_K,
-            save_last=False
+            save_last=False,
         ),
         ProgressLogger(
             precision=hparams.CHECKPOINT.PRECISION,
@@ -109,13 +107,12 @@ def test(hparams):
     trainer.validate(model, val_dataloader)
 
 
-
 if __name__ == "__main__":
     args = parse_args()
     hparams = run_grid_search_experiments(
         args,
-        script='train.py',
+        script="train.py",
     )
     wandb.init(project="humos", config=hparams, name=hparams.EXP_NAME)
-    logger.info(f'Running experiment: {hparams.EXP_NAME}')
+    logger.info(f"Running experiment: {hparams.EXP_NAME}")
     test(hparams)

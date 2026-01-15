@@ -14,13 +14,25 @@ from aitviewer.renderables.smpl import SMPLSequence
 from aitviewer.scene.camera import ViewerCamera
 from torch import Tensor
 
-from bosRegressor.core.biomechanics import BiomechanicalEvaluator, setup_biomechanical_evaluator
+from bosRegressor.core.biomechanics import (
+    BiomechanicalEvaluator,
+    setup_biomechanical_evaluator,
+)
 from humos.utils import constants
 from humos.utils.fk import ForwardKinematicsLayer
 from humos.utils.mesh_utils import smplh_breakdown
-from humos.utils.misc_utils import get_rgba_colors, update_best_metrics, save_demo_meshes
+from humos.utils.misc_utils import (
+    get_rgba_colors,
+    update_best_metrics,
+    save_demo_meshes,
+)
 from .losses import InfoNCE_with_filtering, MotionPriorLoss, DynStabilityLoss
-from .metrics import all_physics_metrics, calculate_recons_metrics, calculate_dyn_stability_metric, MotionPriorMetric
+from .metrics import (
+    all_physics_metrics,
+    calculate_recons_metrics,
+    calculate_dyn_stability_metric,
+    MotionPriorMetric,
+)
 from .temos import TEMOS
 
 
@@ -63,32 +75,47 @@ class CYCLIC_TMR(TEMOS):
     """
 
     def __init__(
-            self,
-            motion_encoder: nn.Module,
-            motion_decoder: nn.Module,
-            pretrained_motion_encoder: nn.Module,
-            normalizer: nn.Module,
-            vae: bool,
-            fact: Optional[float] = None,
-            sample_mean: Optional[bool] = False,
-            train_feats: Optional[List[str]] = None,
-            lmd: Dict = {"recons": 1.0, "joint_recons": 1.0, "latent": 1.0e-5, "cycle_latent": 1.0e-5, "kl": 1.0e-5,
-                         "contrastive": 0.1, "motion_prior": 1.0, "physics_float": 1.0, "physics_penetrate": 1.0,
-                         "physics_skate": 1.0, "dyn_stability": 1.0},
-            compute_metrics: Dict = {"dyn_stability": False, "recons": True, "physics": True, "motion_prior": True},
-            bs: int = 14,
-            lr: float = 1e-4,
-            fps: float = 20.,
-            temperature: float = 0.7,
-            threshold_selfsim: float = 0.80,
-            threshold_selfsim_metrics: float = 0.95,
-            cop_w=30.0,
-            cop_k=100.0,
-            num_val_videos: int = 3,
-            max_vid_rows: int = 3,
-            run_cycle: bool = True,
-            demo: bool = False,
-            renderer: HeadlessRenderer = None,
+        self,
+        motion_encoder: nn.Module,
+        motion_decoder: nn.Module,
+        pretrained_motion_encoder: nn.Module,
+        normalizer: nn.Module,
+        vae: bool,
+        fact: Optional[float] = None,
+        sample_mean: Optional[bool] = False,
+        train_feats: Optional[List[str]] = None,
+        lmd: Dict = {
+            "recons": 1.0,
+            "joint_recons": 1.0,
+            "latent": 1.0e-5,
+            "cycle_latent": 1.0e-5,
+            "kl": 1.0e-5,
+            "contrastive": 0.1,
+            "motion_prior": 1.0,
+            "physics_float": 1.0,
+            "physics_penetrate": 1.0,
+            "physics_skate": 1.0,
+            "dyn_stability": 1.0,
+        },
+        compute_metrics: Dict = {
+            "dyn_stability": False,
+            "recons": True,
+            "physics": True,
+            "motion_prior": True,
+        },
+        bs: int = 14,
+        lr: float = 1e-4,
+        fps: float = 20.0,
+        temperature: float = 0.7,
+        threshold_selfsim: float = 0.80,
+        threshold_selfsim_metrics: float = 0.95,
+        cop_w=30.0,
+        cop_k=100.0,
+        num_val_videos: int = 3,
+        max_vid_rows: int = 3,
+        run_cycle: bool = True,
+        demo: bool = False,
+        renderer: HeadlessRenderer = None,
     ) -> None:
         # Initialize module like TEMOS
         super().__init__(
@@ -134,21 +161,21 @@ class CYCLIC_TMR(TEMOS):
         self.validation_step_pred_embeddings = []
         self.validation_step_gt_embeddings = []
 
-        # Set AITviewer Renderer
-        self.renderer = renderer
+        # # Set AITviewer Renderer
+        # self.renderer = renderer
 
-        # Set a custom camera saved from the viewer
-        self.camera = ViewerCamera()
-        # cam_dir = C.export_dir + "/camera_params/"
-        # cam_dict = joblib.load(cam_dir + "cam_params.pkl")
-        self.camera.load_cam()
+        # # Set a custom camera saved from the viewer
+        # self.camera = ViewerCamera()
+        # # cam_dir = C.export_dir + "/camera_params/"
+        # # cam_dict = joblib.load(cam_dir + "cam_params.pkl")
+        # self.camera.load_cam()
 
-        # Adjust camera parameters to fit the whole body
-        self.camera.ZOOM_FACTOR = 0.7
-        self.camera.position = [0, 1.5, 5]  # Move camera back and up
-        self.camera.fov = 60  # Increase field of view
+        # # Adjust camera parameters to fit the whole body
+        # self.camera.ZOOM_FACTOR = 0.7
+        # self.camera.position = [0, 1.5, 5]  # Move camera back and up
+        # self.camera.fov = 60  # Increase field of view
 
-        self.renderer.scene.camera = self.camera
+        # self.renderer.scene.camera = self.camera
 
         # # set custom lights
         # self.light = Light.facing_origin(
@@ -165,8 +192,12 @@ class CYCLIC_TMR(TEMOS):
         self.bm_female = SMPLLayer(model_type="smplh", gender="female", device=device)
 
         # Get fk models
-        self.fk_male = ForwardKinematicsLayer(constants.SMPL_PATH, gender="male",
-                                              num_joints=constants.SMPLH_BODY_JOINTS, device=device)
+        self.fk_male = ForwardKinematicsLayer(
+            constants.SMPL_PATH,
+            gender="male",
+            num_joints=constants.SMPLH_BODY_JOINTS,
+            device=device,
+        )
         # self.fk_female = ForwardKinematicsLayer(constants.SMPL_PATH, gender="female", num_joints=constants.SMPLH_BODY_JOINTS)
 
         # Specify training features
@@ -184,11 +215,14 @@ class CYCLIC_TMR(TEMOS):
         self.sampled_idx = torch.randperm(bs)
 
         faces = torch.tensor(self.bm_male.faces, dtype=torch.int64).to(device)
-        self.biomechanical_evaluator = BiomechanicalEvaluator(faces=faces, fps=self.fps,
-                                                              cop_w=cop_w, cop_k=cop_k,
-                                                              stencil_size=3,
-                                                              device=device)
-
+        self.biomechanical_evaluator = BiomechanicalEvaluator(
+            faces=faces,
+            fps=self.fps,
+            cop_w=cop_w,
+            cop_k=cop_k,
+            stencil_size=3,
+            device=device,
+        )
 
         identity_pkl = "./datasets/splits/identity_dict_test_split_smpl.pkl"
         with open(identity_pkl, "rb") as f:
@@ -197,21 +231,24 @@ class CYCLIC_TMR(TEMOS):
         # args = Arguments('./configs', filename='generative.yaml')
         # self.nemf_model = NemfArchitecture(args, ngpu=1)
 
-
     def forward_cycle(
-            self,
-            inputs_A,
-            identity_A,
-            identity_B,
-            lengths_A: Optional[List[int]] = None,
-            mask_A: Optional[Tensor] = None,
-            sample_mean: Optional[bool] = None,
-            fact: Optional[float] = None,
-            return_all: bool = False,
+        self,
+        inputs_A,
+        identity_A,
+        identity_B,
+        lengths_A: Optional[List[int]] = None,
+        mask_A: Optional[Tensor] = None,
+        sample_mean: Optional[bool] = None,
+        fact: Optional[float] = None,
+        return_all: bool = False,
     ) -> List[Tensor]:
         # Encoding the inputs and sampling if needed
         latent_vectors_A, distributions_A = self.encode(
-            inputs_A, identity_A, sample_mean=sample_mean, fact=fact, return_distribution=True
+            inputs_A,
+            identity_A,
+            sample_mean=sample_mean,
+            fact=fact,
+            return_distribution=True,
         )
         # Decoding the latent vector: generating motions
         motions_A_giv_A = self.decode(latent_vectors_A, identity_A, lengths_A, mask_A)
@@ -219,7 +256,9 @@ class CYCLIC_TMR(TEMOS):
         if self.run_cycle:
             # Decoding the latent vector: generating motions
             # Note beta_B includes gender
-            motions_B_giv_A = self.decode(latent_vectors_A, identity_B, lengths_A, mask_A)
+            motions_B_giv_A = self.decode(
+                latent_vectors_A, identity_B, lengths_A, mask_A
+            )
 
             # Do not output the betas and gender, use GT
             inputs_B_giv_A = inputs_A.copy()
@@ -228,20 +267,42 @@ class CYCLIC_TMR(TEMOS):
 
             # Encoding in the backward cycle
             latent_vectors_B, distributions_B = self.encode(
-                inputs_B_giv_A, identity_B, sample_mean=sample_mean, fact=fact, return_distribution=True
+                inputs_B_giv_A,
+                identity_B,
+                sample_mean=sample_mean,
+                fact=fact,
+                return_distribution=True,
             )
 
             # Decoding in the backward cycle
-            motions_B_giv_B = self.decode(latent_vectors_B, identity_B, lengths_A, mask_A)
+            motions_B_giv_B = self.decode(
+                latent_vectors_B, identity_B, lengths_A, mask_A
+            )
 
             # Decoding in the backward cycle
-            motions_A_giv_B = self.decode(latent_vectors_B, identity_A, lengths_A, mask_A)
+            motions_A_giv_B = self.decode(
+                latent_vectors_B, identity_A, lengths_A, mask_A
+            )
         else:
-            motions_B_giv_A, motions_A_giv_B, motions_B_giv_B, latent_vectors_B, distributions_B = (
-                None, None, None, None, None)
+            (
+                motions_B_giv_A,
+                motions_A_giv_B,
+                motions_B_giv_B,
+                latent_vectors_B,
+                distributions_B,
+            ) = (None, None, None, None, None)
 
         if return_all:
-            return motions_A_giv_A, motions_B_giv_A, latent_vectors_A, distributions_A, motions_B_giv_B, motions_A_giv_B, latent_vectors_B, distributions_B
+            return (
+                motions_A_giv_A,
+                motions_B_giv_A,
+                latent_vectors_A,
+                distributions_A,
+                motions_B_giv_B,
+                motions_A_giv_B,
+                latent_vectors_B,
+                distributions_B,
+            )
 
         return motions_A_giv_A, motions_B_giv_A, motions_B_giv_B, motions_A_giv_B
 
@@ -252,42 +313,60 @@ class CYCLIC_TMR(TEMOS):
         m_idx = torch.nonzero(gender == 1).squeeze(-1)
         f_idx = torch.nonzero(gender == -1).squeeze(-1)
 
-        m_bs, f_bs = len(m_idx) if m_idx.dim() > 0 else 0, len(f_idx) if f_idx.dim() > 0 else 0
+        m_bs, f_bs = len(m_idx) if m_idx.dim() > 0 else 0, (
+            len(f_idx) if f_idx.dim() > 0 else 0
+        )
         m_fr, f_fr = data["betas"].shape[1], data["betas"].shape[1]
 
         if m_bs > 0:
             # split male
             male_params = {k: v[m_idx] for k, v in smpl_params.items()}
             # squeeze parameter values in batch dimension
-            male_params = {k: v.view(m_bs * m_fr, -1) for k, v in male_params.items() if k != 'gender'}
+            male_params = {
+                k: v.view(m_bs * m_fr, -1)
+                for k, v in male_params.items()
+                if k != "gender"
+            }
             # run smpl fk
-            m_verts, m_joints = self.bm_male(poses_body=male_params['pose_body'],
-                                             betas=male_params['betas'],
-                                             poses_root=male_params['root_orient'],
-                                             trans=male_params['trans'],
-                                             skinning=skinning)
+            m_verts, m_joints = self.bm_male(
+                poses_body=male_params["pose_body"],
+                betas=male_params["betas"],
+                poses_root=male_params["root_orient"],
+                trans=male_params["trans"],
+                # skinning=skinning,
+            )
             # exclude hand joints
-            m_joints = m_joints[:, :constants.SMPLH_BODY_JOINTS, :]
+            m_joints = m_joints[:, : constants.SMPLH_BODY_JOINTS, :]
             # unsqueeze back the batch dimension
-            m_verts, m_joints = (m_verts.view(m_bs, m_fr, -1, 3) if m_verts is not None else m_verts,
-                                 m_joints.view(m_bs, m_fr, -1, 3))
+            m_verts, m_joints = (
+                m_verts.view(m_bs, m_fr, -1, 3) if m_verts is not None else m_verts,
+                m_joints.view(m_bs, m_fr, -1, 3),
+            )
 
         if f_bs > 0:
             # split female
             female_params = {k: v[f_idx] for k, v in smpl_params.items()}
             # squeeze parameter values in batch dimension
-            female_params = {k: v.view(f_bs * f_fr, -1) for k, v in female_params.items() if k != 'gender'}
+            female_params = {
+                k: v.view(f_bs * f_fr, -1)
+                for k, v in female_params.items()
+                if k != "gender"
+            }
             # run smpl fk
-            f_verts, f_joints = self.bm_female(poses_body=female_params['pose_body'],
-                                               betas=female_params['betas'],
-                                               poses_root=female_params['root_orient'],
-                                               trans=female_params['trans'],
-                                               skinning=skinning)
+            f_verts, f_joints = self.bm_female(
+                poses_body=female_params["pose_body"],
+                betas=female_params["betas"],
+                poses_root=female_params["root_orient"],
+                trans=female_params["trans"],
+                # skinning=skinning,
+            )
             # exclude hand joints
-            f_joints = f_joints[:, :constants.SMPLH_BODY_JOINTS, :]
+            f_joints = f_joints[:, : constants.SMPLH_BODY_JOINTS, :]
             # unsqueeze back the batch dimension
-            f_verts, f_joints = (f_verts.view(f_bs, f_fr, -1, 3) if f_verts is not None else f_verts,
-                                 f_joints.view(f_bs, f_fr, -1, 3))
+            f_verts, f_joints = (
+                f_verts.view(f_bs, f_fr, -1, 3) if f_verts is not None else f_verts,
+                f_joints.view(f_bs, f_fr, -1, 3),
+            )
 
         if m_bs > 0 and f_bs > 0:
             # join the f_verts and m_verts according to m_idx and f_idx
@@ -309,7 +388,9 @@ class CYCLIC_TMR(TEMOS):
             joints = f_joints
         else:
             print("CHECK WHY ERROR HERE")
-            import ipdb; ipdb.set_trace()
+            import ipdb
+
+            ipdb.set_trace()
 
         # # Visualize the meshes
         # # save the mesh as an obj file
@@ -344,19 +425,29 @@ class CYCLIC_TMR(TEMOS):
         Flatten the input data and create motion_features "x" and identity_features "identity"
         """
         # get unflatten sizes for each features
-        self.unflat_feat_sizes = {k: v.shape if isinstance(v, torch.Tensor) else -1 for k, v in data.items()}
+        self.unflat_feat_sizes = {
+            k: v.shape if isinstance(v, torch.Tensor) else -1 for k, v in data.items()
+        }
         # flatten each feature
-        data = {k: v.view(v.shape[0], v.shape[1], -1) if isinstance(v, torch.Tensor) and len(v.shape) > 2 else v for
-                k, v
-                in data.items()}
+        data = {
+            k: (
+                v.view(v.shape[0], v.shape[1], -1)
+                if isinstance(v, torch.Tensor) and len(v.shape) > 2
+                else v
+            )
+            for k, v in data.items()
+        }
         # get sizes of each feature
-        self.flat_feat_sizes = {k: v.shape[-1] if isinstance(v, torch.Tensor) else -1 for k, v in data.items()}
+        self.flat_feat_sizes = {
+            k: v.shape[-1] if isinstance(v, torch.Tensor) else -1
+            for k, v in data.items()
+        }
         features = torch.cat([data[k].float() for k in self.train_feats], dim=-1)
-        data['x'] = features
+        data["x"] = features
 
         identity_feats = ["betas", "gender"]
         identity_features = torch.cat([data[k].float() for k in identity_feats], dim=-1)
-        data['identity'] = identity_features
+        data["identity"] = identity_features
         return data
 
     def deconstruct_input(self, data, identity):
@@ -375,11 +466,20 @@ class CYCLIC_TMR(TEMOS):
         data["gender"] = identity[:, :, -1]
 
         # unflatten each feature
-        data = {k: v.view(*self.unflat_feat_sizes[k]) if isinstance(v, torch.Tensor) else v for k, v in
-                data.items()}
+        data = {
+            k: v.view(*self.unflat_feat_sizes[k]) if isinstance(v, torch.Tensor) else v
+            for k, v in data.items()
+        }
         return data
 
-    def compute_loss(self, batch: Dict, shuffle_idx=None, skinning=True, return_all=False, visualize=False) -> Dict:
+    def compute_loss(
+        self,
+        batch: Dict,
+        shuffle_idx=None,
+        skinning=True,
+        return_all=False,
+        visualize=False,
+    ) -> Dict:
         keyids_A = batch["keyid"]
         motion_x_dict_A = batch["motion_x_dict"]
         motion_x_dict_A = self.construct_input(motion_x_dict_A)
@@ -387,8 +487,14 @@ class CYCLIC_TMR(TEMOS):
         # shuffle the A batch to get the B batch
         if shuffle_idx is None:
             shuffle_idx = torch.randperm(len(motion_x_dict_A["x"]))
-        motion_x_dict_B = {k: v[shuffle_idx] if isinstance(v, torch.Tensor) else [v[i] for i in shuffle_idx] for k, v in
-                           motion_x_dict_A.items()}
+        motion_x_dict_B = {
+            k: (
+                v[shuffle_idx]
+                if isinstance(v, torch.Tensor)
+                else [v[i] for i in shuffle_idx]
+            )
+            for k, v in motion_x_dict_A.items()
+        }
 
         mask_A = motion_x_dict_A["mask"]
         ref_motions_A = motion_x_dict_A["x"]
@@ -401,17 +507,25 @@ class CYCLIC_TMR(TEMOS):
                 # Get target shape
                 identity_B = torch.zeros_like(identity_A)
                 # {"fat_man": "008173", "fat_woman": "010148", "short_man": "011569", "short_woman": "001176", "tall_man": "003224", "fit_man": "011412"}
-                keyids_B = ['008173', '010148', '001176', '003224', '011412']
-                keyids_B = [keyid for _ in range(int(len(keyids_A)/len(keyids_B))) for keyid in keyids_B]
+                keyids_B = ["008173", "010148", "001176", "003224", "011412"]
+                keyids_B = [
+                    keyid
+                    for _ in range(int(len(keyids_A) / len(keyids_B)))
+                    for keyid in keyids_B
+                ]
                 for i, keyid_B in enumerate(keyids_B):
                     identity = self.identity_dict_smpl[keyid_B]
-                    identity_B[i] = torch.FloatTensor(identity["identity_B_norm"]).to(self.device)
+                    identity_B[i] = torch.FloatTensor(identity["identity_B_norm"]).to(
+                        self.device
+                    )
             else:
                 # Get target shape
                 identity_B = torch.zeros_like(identity_A)
                 for i, keyid_A in enumerate(keyids_A):
                     identity = self.identity_dict_smpl[keyid_A]
-                    identity_B[i] = torch.FloatTensor(identity["identity_B_norm"]).to(self.device)
+                    identity_B[i] = torch.FloatTensor(identity["identity_B_norm"]).to(
+                        self.device
+                    )
         else:
             identity_B = motion_x_dict_B["identity"]  # these include betas + gender
 
@@ -420,84 +534,129 @@ class CYCLIC_TMR(TEMOS):
         # sent_emb_B = batch["sent_emb"][shuffle_idx]
 
         # motion -> motion (input to cycle is A)
-        (m_motions_A_giv_A, m_motions_B_giv_A, m_latents_A, m_dists_A,
-         m_motions_B_giv_B, m_motions_A_giv_B, m_latents_B, m_dists_B) = self.forward_cycle(
-            motion_x_dict_A,
-            identity_A,
-            identity_B,
-            mask_A=mask_A,
-            return_all=True
+        (
+            m_motions_A_giv_A,
+            m_motions_B_giv_A,
+            m_latents_A,
+            m_dists_A,
+            m_motions_B_giv_B,
+            m_motions_A_giv_B,
+            m_latents_B,
+            m_dists_B,
+        ) = self.forward_cycle(
+            motion_x_dict_A, identity_A, identity_B, mask_A=mask_A, return_all=True
         )
 
         # unnormalize the motion features
-        ref_motions_un_A = self.normalizer.inverse(self.deconstruct_input(ref_motions_A, identity_A))
+        ref_motions_un_A = self.normalizer.inverse(
+            self.deconstruct_input(ref_motions_A, identity_A)
+        )
         ref_motions_un_A = self.construct_input(ref_motions_un_A)
         m_motions_un_A_giv_A = self.normalizer.inverse(
-            self.deconstruct_input(m_motions_A_giv_A[:, :, :-11], identity_A))
+            self.deconstruct_input(m_motions_A_giv_A[:, :, :-11], identity_A)
+        )
         m_motions_un_A_giv_A = self.construct_input(m_motions_un_A_giv_A)
         if self.run_cycle:
             m_motions_un_B_giv_A = self.normalizer.inverse(
-                self.deconstruct_input(m_motions_B_giv_A[:, :, :-11], identity_B))
+                self.deconstruct_input(m_motions_B_giv_A[:, :, :-11], identity_B)
+            )
             m_motions_un_B_giv_A = self.construct_input(m_motions_un_B_giv_A)
             m_motions_un_B_giv_B = self.normalizer.inverse(
-                self.deconstruct_input(m_motions_B_giv_B[:, :, :-11], identity_B))
+                self.deconstruct_input(m_motions_B_giv_B[:, :, :-11], identity_B)
+            )
             m_motions_un_B_giv_B = self.construct_input(m_motions_un_B_giv_B)
             m_motions_un_A_giv_B = self.normalizer.inverse(
-                self.deconstruct_input(m_motions_A_giv_B[:, :, :-11], identity_A))
+                self.deconstruct_input(m_motions_A_giv_B[:, :, :-11], identity_A)
+            )
             m_motions_un_A_giv_B = self.construct_input(m_motions_un_A_giv_B)
 
         # Store all losses and metrics
         losses = {}
-        compute_physics_losses = self.lmd["physics_penetrate"] > 0 or self.lmd["physics_float"] > 0 or self.lmd[
-            "physics_skate"] > 0 or return_all
+        compute_physics_losses = (
+            self.lmd["physics_penetrate"] > 0
+            or self.lmd["physics_float"] > 0
+            or self.lmd["physics_skate"] > 0
+            or return_all
+        )
         compute_dyn_stability_loss = self.lmd["dyn_stability"] > 0
 
-
-        m_verts_A_giv_A, m_verts_B_giv_A, m_verts_B_giv_B, m_verts_A_giv_B = (None, None, None, None)
-        m_joints_A_giv_A, m_joints_B_giv_A, m_joints_B_giv_B, m_joints_A_giv_B = (None, None, None, None)
+        m_verts_A_giv_A, m_verts_B_giv_A, m_verts_B_giv_B, m_verts_A_giv_B = (
+            None,
+            None,
+            None,
+            None,
+        )
+        m_joints_A_giv_A, m_joints_B_giv_A, m_joints_B_giv_B, m_joints_A_giv_B = (
+            None,
+            None,
+            None,
+            None,
+        )
 
         # compute the motion prior loss
         if self.run_cycle:
             inputs_B_giv_A = motion_x_dict_A.copy()
             inputs_B_giv_A["x"] = m_motions_B_giv_A[:, :, :-11]
             inputs_B_giv_A["identity"] = identity_B
-            losses["motion_prior"] = (
-                self.motion_prior_loss_fn(motion_x_dict_A, inputs_B_giv_A)
+            losses["motion_prior"] = self.motion_prior_loss_fn(
+                motion_x_dict_A, inputs_B_giv_A
             )
 
         # For physics-losses
         if compute_physics_losses:
             if self.run_cycle:
-                m_verts_B_giv_A, m_joints_B_giv_A = self.run_smpl_fk(m_motions_un_B_giv_A,
-                                                                     skinning=True)  # skinning required for physics losses
-                losses["physics_penetrate"], losses["physics_float"], losses["physics_skate"], skate_std, skate_sum, skate_perc = self.physics_loss_fn(
-                    m_verts_B_giv_A,
-                    m_joints_B_giv_A,
-                    device=self.device)
+                m_verts_B_giv_A, m_joints_B_giv_A = self.run_smpl_fk(
+                    m_motions_un_B_giv_A, skinning=True
+                )  # skinning required for physics losses
+                (
+                    losses["physics_penetrate"],
+                    losses["physics_float"],
+                    losses["physics_skate"],
+                    skate_std,
+                    skate_sum,
+                    skate_perc,
+                ) = self.physics_loss_fn(
+                    m_verts_B_giv_A, m_joints_B_giv_A, device=self.device
+                )
             else:
-                m_verts_A_giv_A, m_joints_A_giv_A = self.run_smpl_fk(m_motions_un_A_giv_A,
-                                                                     skinning=True)  # skinning required for physics losses
-                losses["physics_penetrate"], losses["physics_float"], losses["physics_skate"], skate_std, skate_sum, skate_perc  = self.physics_loss_fn(
-                    m_verts_A_giv_A,
-                    m_joints_A_giv_A,
-                    device=self.device)
+                m_verts_A_giv_A, m_joints_A_giv_A = self.run_smpl_fk(
+                    m_motions_un_A_giv_A, skinning=True
+                )  # skinning required for physics losses
+                (
+                    losses["physics_penetrate"],
+                    losses["physics_float"],
+                    losses["physics_skate"],
+                    skate_std,
+                    skate_sum,
+                    skate_perc,
+                ) = self.physics_loss_fn(
+                    m_verts_A_giv_A, m_joints_A_giv_A, device=self.device
+                )
 
         # For dynamic stability loss
         if compute_dyn_stability_loss:
             if self.run_cycle:
                 if m_verts_B_giv_A is None:
-                    m_verts_B_giv_A, m_joints_B_giv_A = self.run_smpl_fk(m_motions_un_B_giv_A, skinning=True)
+                    m_verts_B_giv_A, m_joints_B_giv_A = self.run_smpl_fk(
+                        m_motions_un_B_giv_A, skinning=True
+                    )
                 # compute biomechanics losses
-                setup_biomechanical_evaluator(self.biomechanical_evaluator,
-                                                joints=m_joints_B_giv_A,
-                                                verts=m_verts_B_giv_A)
+                setup_biomechanical_evaluator(
+                    self.biomechanical_evaluator,
+                    joints=m_joints_B_giv_A,
+                    verts=m_verts_B_giv_A,
+                )
 
             else:
                 if m_verts_A_giv_A is None:
-                    m_verts_A_giv_A, m_joints_A_giv_A = self.run_smpl_fk(m_motions_un_A_giv_A, skinning=True)
-                    setup_biomechanical_evaluator(self.biomechanical_evaluator,
-                                                  joints=m_joints_A_giv_A,
-                                                  verts=m_verts_A_giv_A)
+                    m_verts_A_giv_A, m_joints_A_giv_A = self.run_smpl_fk(
+                        m_motions_un_A_giv_A, skinning=True
+                    )
+                    setup_biomechanical_evaluator(
+                        self.biomechanical_evaluator,
+                        joints=m_joints_A_giv_A,
+                        verts=m_verts_A_giv_A,
+                    )
             cops = self.biomechanical_evaluator.cops
             # take the center frames
             center_frame = self.biomechanical_evaluator.center_frame
@@ -505,7 +664,6 @@ class CYCLIC_TMR(TEMOS):
             zmps = self.biomechanical_evaluator.zmps
             # check if the z coordinate is all zero for both cops and zmps
             losses["dyn_stability"] = self.dyn_stability_loss_fn(cops, zmps)
-
 
         # Reconstructions losses
         # fmt: off
@@ -687,19 +845,19 @@ class CYCLIC_TMR(TEMOS):
                     self.validation_step_gt_embeddings.append(gt_embedding)
 
             # Generate all visualizations
-            if visualize:
-                all_ref_frames_A = self.render_frames(ref_motions_un_A, color='green', tag="ref")
-                if self.run_cycle:
-                    all_pred_frames_B_giv_A = self.render_frames(m_motions_un_B_giv_A, color='red',
-                                                                 tag="pred_B_giv_A")
-                    all_pred_frames_A_giv_B = self.render_frames(m_motions_un_A_giv_B, color='purple',
-                                                                 tag="pred_A_giv_B")
-                    all_pred_frames_A_giv_A = None
-                else:
-                    all_pred_frames_A_giv_A = self.render_frames(m_motions_un_A_giv_A, color='blue',
-                                                                 tag="pred_A_giv_A")
-                    all_pred_frames_B_giv_A = None
-                    all_pred_frames_A_giv_B = None
+            # if visualize:
+            #     all_ref_frames_A = self.render_frames(ref_motions_un_A, color='green', tag="ref")
+            #     if self.run_cycle:
+            #         all_pred_frames_B_giv_A = self.render_frames(m_motions_un_B_giv_A, color='red',
+            #                                                      tag="pred_B_giv_A")
+            #         all_pred_frames_A_giv_B = self.render_frames(m_motions_un_A_giv_B, color='purple',
+            #                                                      tag="pred_A_giv_B")
+            #         all_pred_frames_A_giv_A = None
+            #     else:
+            #         all_pred_frames_A_giv_A = self.render_frames(m_motions_un_A_giv_A, color='blue',
+            #                                                      tag="pred_A_giv_A")
+            #         all_pred_frames_B_giv_A = None
+            #         all_pred_frames_A_giv_B = None
 
             else:
                 all_ref_frames_A = None
@@ -799,21 +957,23 @@ class CYCLIC_TMR(TEMOS):
         else:
             return losses
 
-    def render_frames(self, data, color='grey', tag="pred"):
+    def render_frames(self, data, color="grey", tag="pred"):
         color = get_rgba_colors(color)
 
         pred_params = smplh_breakdown(data, fk=self.fk_male)
 
         # get num_videos equally spaced frames
         pred_params["gender"] = pred_params["gender"][:, 0, -1]
-        select_indices = torch.linspace(0, pred_params["gender"].shape[0] - 1, self.num_val_videos).long()
+        select_indices = torch.linspace(
+            0, pred_params["gender"].shape[0] - 1, self.num_val_videos
+        ).long()
         # get the corresponding SMPL parameters
         pred_params = {k: v[select_indices] for k, v in pred_params.items()}
 
         # loop over filtered frames
         all_frames = []
         for i in range(self.num_val_videos):
-            gender = int(pred_params['gender'][i])
+            gender = int(pred_params["gender"][i])
             if gender == 1:
                 smpl_layer = self.bm_male
             elif gender == -1:
@@ -831,8 +991,10 @@ class CYCLIC_TMR(TEMOS):
             )
             # Create the headless renderer and add the sequence.
             self.renderer.scene.add(smpl_seq)
-            frames = self.renderer.save_video(video_dir=os.path.join(C.export_dir, f"{tag}_vis/{tag}_{i}.mp4"),
-                                              save_on_disk=False)
+            frames = self.renderer.save_video(
+                video_dir=os.path.join(C.export_dir, f"{tag}_vis/{tag}_{i}.mp4"),
+                save_on_disk=False,
+            )
 
             # Convert frames to array
             frames = np.array(frames)
@@ -856,13 +1018,15 @@ class CYCLIC_TMR(TEMOS):
             if batch_idx % 2 == 0:
                 visualize = True
 
-        losses, t_latents_A, t_latents_B, m_latents_A, m_latents_B, metrics, all_vis = self.compute_loss(batch,
-                                                                                                         shuffle_idx,
-                                                                                                         skinning=True,
-                                                                                                         return_all=True,
-                                                                                                         visualize=visualize)
+        losses, t_latents_A, t_latents_B, m_latents_A, m_latents_B, metrics, all_vis = (
+            self.compute_loss(
+                batch, shuffle_idx, skinning=True, return_all=True, visualize=visualize
+            )
+        )
         if visualize:
-            ref_videos_A, val_videos_A_giv_A, val_videos_B_giv_A, val_videos_A_giv_B = all_vis
+            ref_videos_A, val_videos_A_giv_A, val_videos_B_giv_A, val_videos_A_giv_B = (
+                all_vis
+            )
             self.validation_step_ref_videos_A.append(ref_videos_A)
             if self.run_cycle:
                 self.validation_step_val_videos_B_giv_A.append(val_videos_B_giv_A)
@@ -899,31 +1063,77 @@ class CYCLIC_TMR(TEMOS):
         # join all frames into one video vertically
         ref_videos_A = np.concatenate(self.validation_step_ref_videos_A, axis=1)
         ref_videos_A = np.transpose(ref_videos_A, (0, 3, 1, 2))
-        wandb.log({"vis/ref_videos_A": [wandb.Video(ref_videos_A, fps=20, format="mp4")]})
+        wandb.log(
+            {"vis/ref_videos_A": [wandb.Video(ref_videos_A, fps=20, format="mp4")]}
+        )
         if self.run_cycle:
-            val_videos_B_giv_A = np.concatenate(self.validation_step_val_videos_B_giv_A, axis=1)
+            val_videos_B_giv_A = np.concatenate(
+                self.validation_step_val_videos_B_giv_A, axis=1
+            )
             val_videos_B_giv_A = np.transpose(val_videos_B_giv_A, (0, 3, 1, 2))
             olay_videos_B_giv_A = self.overlay_videos(val_videos_B_giv_A, ref_videos_A)
-            wandb.log({"vis/val_videos_B_giv_A": [wandb.Video(val_videos_B_giv_A, fps=20, format="mp4")]})
-            wandb.log({"vis/olay_videos_B_giv_A": [wandb.Video(olay_videos_B_giv_A, fps=20, format="mp4")]})
-            val_videos_A_giv_B = np.concatenate(self.validation_step_val_videos_A_giv_B, axis=1)
+            wandb.log(
+                {
+                    "vis/val_videos_B_giv_A": [
+                        wandb.Video(val_videos_B_giv_A, fps=20, format="mp4")
+                    ]
+                }
+            )
+            wandb.log(
+                {
+                    "vis/olay_videos_B_giv_A": [
+                        wandb.Video(olay_videos_B_giv_A, fps=20, format="mp4")
+                    ]
+                }
+            )
+            val_videos_A_giv_B = np.concatenate(
+                self.validation_step_val_videos_A_giv_B, axis=1
+            )
             val_videos_A_giv_B = np.transpose(val_videos_A_giv_B, (0, 3, 1, 2))
             olay_videos_A_giv_B = self.overlay_videos(val_videos_A_giv_B, ref_videos_A)
-            wandb.log({"vis/val_videos_A_giv_B": [wandb.Video(val_videos_A_giv_B, fps=20, format="mp4")]})
-            wandb.log({"vis/olay_videos_A_giv_B": [wandb.Video(olay_videos_A_giv_B, fps=20, format="mp4")]})
+            wandb.log(
+                {
+                    "vis/val_videos_A_giv_B": [
+                        wandb.Video(val_videos_A_giv_B, fps=20, format="mp4")
+                    ]
+                }
+            )
+            wandb.log(
+                {
+                    "vis/olay_videos_A_giv_B": [
+                        wandb.Video(olay_videos_A_giv_B, fps=20, format="mp4")
+                    ]
+                }
+            )
         else:
-            val_videos_A_giv_A = np.concatenate(self.validation_step_val_videos_A_giv_A, axis=1)
+            val_videos_A_giv_A = np.concatenate(
+                self.validation_step_val_videos_A_giv_A, axis=1
+            )
             val_videos_A_giv_A = np.transpose(val_videos_A_giv_A, (0, 3, 1, 2))
             # overlay val_videos_a_giv_a on ref_videos_A
             olay_videos_A_giv_A = self.overlay_videos(val_videos_A_giv_A, ref_videos_A)
-            wandb.log({"vis/val_videos_A_giv_A": [wandb.Video(val_videos_A_giv_A, fps=20, format="mp4")]})
-            wandb.log({"vis/olay_videos_A_giv_A": [wandb.Video(olay_videos_A_giv_A, fps=20, format="mp4")]})
+            wandb.log(
+                {
+                    "vis/val_videos_A_giv_A": [
+                        wandb.Video(val_videos_A_giv_A, fps=20, format="mp4")
+                    ]
+                }
+            )
+            wandb.log(
+                {
+                    "vis/olay_videos_A_giv_A": [
+                        wandb.Video(olay_videos_A_giv_A, fps=20, format="mp4")
+                    ]
+                }
+            )
 
         # Combine all metrics from the batches
         all_metrics = {}
         for metric_name in self.validation_step_metrics[0].keys():
             if metric_name == "in_hull_label":
-                in_hull_label = np.concatenate([x[metric_name] for x in self.validation_step_metrics])
+                in_hull_label = np.concatenate(
+                    [x[metric_name] for x in self.validation_step_metrics]
+                )
                 # in_hull_label contains, 1, 0 and -1. Find the percentage of 1s in the in_hull_label
                 all_metrics["in_bos"] = np.mean(in_hull_label == 1)
             # Get the mean metrics in cms
@@ -936,13 +1146,20 @@ class CYCLIC_TMR(TEMOS):
         # Calculation motion prior metrics
         if self.compute_metrics["motion_prior"]:
             if self.run_cycle:
-                fid, pred_diversity, gt_diversity = self.motion_prior_metrics.compute_fid_diversity(self.validation_step_pred_embeddings, self.validation_step_gt_embeddings)
-                all_metrics['fid'] = np.mean(fid)
-                all_metrics['pred_diversity'] = np.mean(pred_diversity)
-                all_metrics['gt_diversity'] = np.mean(gt_diversity)
-                wandb.log({"metrics/fid_epoch": all_metrics['fid']})
-                wandb.log({"metrics/pred_diversity_epoch": all_metrics['pred_diversity']})
-                wandb.log({"metrics/gt_diversity_epoch": all_metrics['gt_diversity']})
+                fid, pred_diversity, gt_diversity = (
+                    self.motion_prior_metrics.compute_fid_diversity(
+                        self.validation_step_pred_embeddings,
+                        self.validation_step_gt_embeddings,
+                    )
+                )
+                all_metrics["fid"] = np.mean(fid)
+                all_metrics["pred_diversity"] = np.mean(pred_diversity)
+                all_metrics["gt_diversity"] = np.mean(gt_diversity)
+                wandb.log({"metrics/fid_epoch": all_metrics["fid"]})
+                wandb.log(
+                    {"metrics/pred_diversity_epoch": all_metrics["pred_diversity"]}
+                )
+                wandb.log({"metrics/gt_diversity_epoch": all_metrics["gt_diversity"]})
 
         # save epoch
         wandb.log({"current_epoch": self.current_epoch})
@@ -958,4 +1175,3 @@ class CYCLIC_TMR(TEMOS):
         self.validation_step_metrics.clear()
         self.validation_step_pred_embeddings.clear()
         self.validation_step_gt_embeddings.clear()
-
