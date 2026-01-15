@@ -97,9 +97,6 @@ class AMASSMotionLoader:
 
         motion = get_input_features(motion, training=True)
 
-        print(motion)
-        exit()
-
         if self.normalizer is not None:
             motion = self.normalizer(motion)
 
