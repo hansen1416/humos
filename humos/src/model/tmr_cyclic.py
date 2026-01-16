@@ -1013,26 +1013,26 @@ class CYCLIC_TMR(TEMOS):
 
         visualize = False
 
-        if len(self.validation_step_ref_videos_A) < self.max_vid_rows:
-            # skip every other batch
-            if batch_idx % 2 == 0:
-                visualize = True
+        # if len(self.validation_step_ref_videos_A) < self.max_vid_rows:
+        #     # skip every other batch
+        #     if batch_idx % 2 == 0:
+        #         visualize = True
 
         losses, t_latents_A, t_latents_B, m_latents_A, m_latents_B, metrics, all_vis = (
             self.compute_loss(
                 batch, shuffle_idx, skinning=True, return_all=True, visualize=visualize
             )
         )
-        if visualize:
-            ref_videos_A, val_videos_A_giv_A, val_videos_B_giv_A, val_videos_A_giv_B = (
-                all_vis
-            )
-            self.validation_step_ref_videos_A.append(ref_videos_A)
-            if self.run_cycle:
-                self.validation_step_val_videos_B_giv_A.append(val_videos_B_giv_A)
-                self.validation_step_val_videos_A_giv_B.append(val_videos_A_giv_B)
-            else:
-                self.validation_step_val_videos_A_giv_A.append(val_videos_A_giv_A)
+        # if visualize:
+        #     ref_videos_A, val_videos_A_giv_A, val_videos_B_giv_A, val_videos_A_giv_B = (
+        #         all_vis
+        #     )
+        #     self.validation_step_ref_videos_A.append(ref_videos_A)
+        #     if self.run_cycle:
+        #         self.validation_step_val_videos_B_giv_A.append(val_videos_B_giv_A)
+        #         self.validation_step_val_videos_A_giv_B.append(val_videos_A_giv_B)
+        #     else:
+        #         self.validation_step_val_videos_A_giv_A.append(val_videos_A_giv_A)
 
         # Store the metrics
         self.validation_step_metrics.append(metrics)
@@ -1061,71 +1061,71 @@ class CYCLIC_TMR(TEMOS):
 
     def on_validation_epoch_end(self):
         # join all frames into one video vertically
-        ref_videos_A = np.concatenate(self.validation_step_ref_videos_A, axis=1)
-        ref_videos_A = np.transpose(ref_videos_A, (0, 3, 1, 2))
-        wandb.log(
-            {"vis/ref_videos_A": [wandb.Video(ref_videos_A, fps=20, format="mp4")]}
-        )
-        if self.run_cycle:
-            val_videos_B_giv_A = np.concatenate(
-                self.validation_step_val_videos_B_giv_A, axis=1
-            )
-            val_videos_B_giv_A = np.transpose(val_videos_B_giv_A, (0, 3, 1, 2))
-            olay_videos_B_giv_A = self.overlay_videos(val_videos_B_giv_A, ref_videos_A)
-            wandb.log(
-                {
-                    "vis/val_videos_B_giv_A": [
-                        wandb.Video(val_videos_B_giv_A, fps=20, format="mp4")
-                    ]
-                }
-            )
-            wandb.log(
-                {
-                    "vis/olay_videos_B_giv_A": [
-                        wandb.Video(olay_videos_B_giv_A, fps=20, format="mp4")
-                    ]
-                }
-            )
-            val_videos_A_giv_B = np.concatenate(
-                self.validation_step_val_videos_A_giv_B, axis=1
-            )
-            val_videos_A_giv_B = np.transpose(val_videos_A_giv_B, (0, 3, 1, 2))
-            olay_videos_A_giv_B = self.overlay_videos(val_videos_A_giv_B, ref_videos_A)
-            wandb.log(
-                {
-                    "vis/val_videos_A_giv_B": [
-                        wandb.Video(val_videos_A_giv_B, fps=20, format="mp4")
-                    ]
-                }
-            )
-            wandb.log(
-                {
-                    "vis/olay_videos_A_giv_B": [
-                        wandb.Video(olay_videos_A_giv_B, fps=20, format="mp4")
-                    ]
-                }
-            )
-        else:
-            val_videos_A_giv_A = np.concatenate(
-                self.validation_step_val_videos_A_giv_A, axis=1
-            )
-            val_videos_A_giv_A = np.transpose(val_videos_A_giv_A, (0, 3, 1, 2))
-            # overlay val_videos_a_giv_a on ref_videos_A
-            olay_videos_A_giv_A = self.overlay_videos(val_videos_A_giv_A, ref_videos_A)
-            wandb.log(
-                {
-                    "vis/val_videos_A_giv_A": [
-                        wandb.Video(val_videos_A_giv_A, fps=20, format="mp4")
-                    ]
-                }
-            )
-            wandb.log(
-                {
-                    "vis/olay_videos_A_giv_A": [
-                        wandb.Video(olay_videos_A_giv_A, fps=20, format="mp4")
-                    ]
-                }
-            )
+        # ref_videos_A = np.concatenate(self.validation_step_ref_videos_A, axis=1)
+        # ref_videos_A = np.transpose(ref_videos_A, (0, 3, 1, 2))
+        # wandb.log(
+        #     {"vis/ref_videos_A": [wandb.Video(ref_videos_A, fps=20, format="mp4")]}
+        # )
+        # if self.run_cycle:
+        #     val_videos_B_giv_A = np.concatenate(
+        #         self.validation_step_val_videos_B_giv_A, axis=1
+        #     )
+        #     val_videos_B_giv_A = np.transpose(val_videos_B_giv_A, (0, 3, 1, 2))
+        #     olay_videos_B_giv_A = self.overlay_videos(val_videos_B_giv_A, ref_videos_A)
+        #     wandb.log(
+        #         {
+        #             "vis/val_videos_B_giv_A": [
+        #                 wandb.Video(val_videos_B_giv_A, fps=20, format="mp4")
+        #             ]
+        #         }
+        #     )
+        #     wandb.log(
+        #         {
+        #             "vis/olay_videos_B_giv_A": [
+        #                 wandb.Video(olay_videos_B_giv_A, fps=20, format="mp4")
+        #             ]
+        #         }
+        #     )
+        #     val_videos_A_giv_B = np.concatenate(
+        #         self.validation_step_val_videos_A_giv_B, axis=1
+        #     )
+        #     val_videos_A_giv_B = np.transpose(val_videos_A_giv_B, (0, 3, 1, 2))
+        #     olay_videos_A_giv_B = self.overlay_videos(val_videos_A_giv_B, ref_videos_A)
+        #     wandb.log(
+        #         {
+        #             "vis/val_videos_A_giv_B": [
+        #                 wandb.Video(val_videos_A_giv_B, fps=20, format="mp4")
+        #             ]
+        #         }
+        #     )
+        #     wandb.log(
+        #         {
+        #             "vis/olay_videos_A_giv_B": [
+        #                 wandb.Video(olay_videos_A_giv_B, fps=20, format="mp4")
+        #             ]
+        #         }
+        #     )
+        # else:
+        #     val_videos_A_giv_A = np.concatenate(
+        #         self.validation_step_val_videos_A_giv_A, axis=1
+        #     )
+        #     val_videos_A_giv_A = np.transpose(val_videos_A_giv_A, (0, 3, 1, 2))
+        #     # overlay val_videos_a_giv_a on ref_videos_A
+        #     olay_videos_A_giv_A = self.overlay_videos(val_videos_A_giv_A, ref_videos_A)
+        #     wandb.log(
+        #         {
+        #             "vis/val_videos_A_giv_A": [
+        #                 wandb.Video(val_videos_A_giv_A, fps=20, format="mp4")
+        #             ]
+        #         }
+        #     )
+        #     wandb.log(
+        #         {
+        #             "vis/olay_videos_A_giv_A": [
+        #                 wandb.Video(olay_videos_A_giv_A, fps=20, format="mp4")
+        #             ]
+        #         }
+        #     )
 
         # Combine all metrics from the batches
         all_metrics = {}
@@ -1168,10 +1168,10 @@ class CYCLIC_TMR(TEMOS):
         # Record best metrics on wandb
         self.validation_step_m_latents_A.clear()
         self.validation_step_m_latents_B.clear()
-        self.validation_step_ref_videos_A.clear()
-        self.validation_step_val_videos_A_giv_A.clear()
-        self.validation_step_val_videos_B_giv_A.clear()
-        self.validation_step_val_videos_A_giv_B.clear()
+        # self.validation_step_ref_videos_A.clear()
+        # self.validation_step_val_videos_A_giv_A.clear()
+        # self.validation_step_val_videos_B_giv_A.clear()
+        # self.validation_step_val_videos_A_giv_B.clear()
         self.validation_step_metrics.clear()
         self.validation_step_pred_embeddings.clear()
         self.validation_step_gt_embeddings.clear()

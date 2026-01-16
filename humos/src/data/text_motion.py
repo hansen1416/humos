@@ -56,6 +56,9 @@ class TextMotionDataset(Dataset):
         # remove too short or too long annotations
         self.annotations = load_annotations(path)
 
+        # only keep one
+        self.annotations = {k: v for k, v in self.annotations.items() if k == "000000"}
+
         # filter annotations (min/max)
         # but not for the test set
         # otherwise it is not fair for everyone
@@ -75,7 +78,7 @@ class TextMotionDataset(Dataset):
             # remove the keyids with _M
             self.keyids = [keyid for keyid in self.keyids if "M" not in keyid]
         if demo:
-            self.keyids = ['000073', '000419', '001262', '004117']
+            self.keyids = ["000073", "000419", "001262", "004117"]
             # Repeat this same list 25 times to have a larger dataset
             self.keyids = [keyid for _ in range(25) for keyid in self.keyids]
         if preload:
@@ -90,11 +93,11 @@ class TextMotionDataset(Dataset):
         output = self.load_keyid(keyid)
         # if output is None:
         #     TODO: this might cause issues in test time stocasticity in results
-            # if self.is_training:
-            #     index = np.random.randint(len(self.keyids))
-            # else:
-            #     index = index - 1
-            # return self.__getitem__(index)
+        # if self.is_training:
+        #     index = np.random.randint(len(self.keyids))
+        # else:
+        #     index = index - 1
+        # return self.__getitem__(index)
         return output
 
     def load_keyid(self, keyid):
@@ -138,11 +141,11 @@ class TextMotionDataset(Dataset):
         # Remove humanact12
         # Remove treadmill from BMLrub (treadmill_ and normal_)
         # Remove ice-skating (HDM_dg_07-01) in MPI_HDM05
-        if 'humanact12' in data['path']:
+        if "humanact12" in data["path"]:
             return False
-        if 'treadmill' in data['path'] or 'normal' in data['path']:
+        if "treadmill" in data["path"] or "normal" in data["path"]:
             return False
-        if 'HDM_dg_07-01' in data['path']:
+        if "HDM_dg_07-01" in data["path"]:
             return False
         return True
 
