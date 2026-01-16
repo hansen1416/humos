@@ -505,6 +505,56 @@ class CYCLIC_TMR(TEMOS):
             motion_x_dict_A, identity_A, identity_B, mask_A=mask_A, return_all=True
         )
 
+        # ---- DEBUG: save predicted motion dict(s) to disk ----
+        if return_all and (getattr(self, "global_rank", 0) == 0):
+            out_dir = "./debug_pred"
+            os.makedirs(out_dir, exist_ok=True)
+
+            # choose which prediction to inspect
+            if self.run_cycle:
+                pred_dict_norm = self.deconstruct_input(
+                    m_motions_B_giv_A[:, :, :-11], identity_B
+                )
+                tag = "B_giv_A"
+            else:
+                pred_dict_norm = self.deconstruct_input(
+                    m_motions_A_giv_A[:, :, :-11], identity_A
+                )
+                tag = "A_giv_A"
+
+            # also compute unnormalized version (often easier to interpret)
+            pred_dict_un = self.normalizer.inverse(pred_dict_norm)
+
+            # save per-sample (safe even if bs>1)
+            bs = next(v.shape[0] for v in pred_dict_norm.values() if torch.is_tensor(v))
+            for i in range(bs):
+                key = (
+                    keyids_A[i]
+                    if isinstance(keyids_A, (list, tuple))
+                    else str(keyids_A[i])
+                )
+
+                pack = {
+                    "keyid": key,
+                    "tag": tag,
+                    "pred_norm": {
+                        k: (v[i].detach().cpu() if torch.is_tensor(v) else v)
+                        for k, v in pred_dict_norm.items()
+                    },
+                    "pred_un": {
+                        k: (v[i].detach().cpu() if torch.is_tensor(v) else v)
+                        for k, v in pred_dict_un.items()
+                    },
+                    "identity_A": identity_A[i].detach().cpu(),
+                    "identity_B": (
+                        identity_B[i].detach().cpu() if self.run_cycle else None
+                    ),
+                }
+                save_path = os.path.join(out_dir, f"{key}_{tag}.pt")
+                torch.save(pack, save_path)
+                print(f"[debug] saved: {save_path}")
+        # ------------------------------------------------------
+
         # unnormalize the motion features
         ref_motions_un_A = self.normalizer.inverse(
             self.deconstruct_input(ref_motions_A, identity_A)
