@@ -132,7 +132,11 @@ class CYCLIC_TMR(TEMOS):
         )
 
         self.fps = fps
+        self.demo = demo
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        self.num_val_videos = num_val_videos if not self.demo else 5
+        self.max_vid_rows = max_vid_rows if not self.demo else 4
 
         # adding the contrastive loss
         self.contrastive_loss_fn = InfoNCE_with_filtering(
@@ -156,6 +160,30 @@ class CYCLIC_TMR(TEMOS):
         self.validation_step_metrics = []
         self.validation_step_pred_embeddings = []
         self.validation_step_gt_embeddings = []
+
+        # # Set AITviewer Renderer
+        # self.renderer = renderer
+
+        # # Set a custom camera saved from the viewer
+        # self.camera = ViewerCamera()
+        # # cam_dir = C.export_dir + "/camera_params/"
+        # # cam_dict = joblib.load(cam_dir + "cam_params.pkl")
+        # self.camera.load_cam()
+
+        # # Adjust camera parameters to fit the whole body
+        # self.camera.ZOOM_FACTOR = 0.7
+        # self.camera.position = [0, 1.5, 5]  # Move camera back and up
+        # self.camera.fov = 60  # Increase field of view
+
+        # self.renderer.scene.camera = self.camera
+
+        # # set custom lights
+        # self.light = Light.facing_origin(
+        #         light_color=(1.0, 1.0, 1.0),
+        #         name="Extra Light",
+        #         position=(0.0, 5.0, 10.0) if C.z_up else (0.0, 5.0, 15.0),
+        #     )
+        # self.renderer.scene.add_light(self.light)
 
         self.run_cycle = run_cycle
 
@@ -475,15 +503,29 @@ class CYCLIC_TMR(TEMOS):
         # mask_B = motion_x_dict_B["mask"]
         # ref_motions_B = motion_x_dict_B["x"]
         if return_all:
-            # Get target shape
-            # TODO: identity_A and identity_B are tensors of shape [1, 200, 11]
-            identity_B = torch.zeros_like(identity_A)
-            for i, keyid_A in enumerate(keyids_A):
-                # TODO: identity is a dict find out about this logigc, replace `identity_B` with my own betas
-                identity = self.identity_dict_smpl[keyid_A]
-                identity_B[i] = torch.FloatTensor(identity["identity_B_norm"]).to(
-                    self.device
-                )
+            if self.demo:
+                # Get target shape
+                identity_B = torch.zeros_like(identity_A)
+                # {"fat_man": "008173", "fat_woman": "010148", "short_man": "011569", "short_woman": "001176", "tall_man": "003224", "fit_man": "011412"}
+                keyids_B = ["008173", "010148", "001176", "003224", "011412"]
+                keyids_B = [
+                    keyid
+                    for _ in range(int(len(keyids_A) / len(keyids_B)))
+                    for keyid in keyids_B
+                ]
+                for i, keyid_B in enumerate(keyids_B):
+                    identity = self.identity_dict_smpl[keyid_B]
+                    identity_B[i] = torch.FloatTensor(identity["identity_B_norm"]).to(
+                        self.device
+                    )
+            else:
+                # Get target shape
+                identity_B = torch.zeros_like(identity_A)
+                for i, keyid_A in enumerate(keyids_A):
+                    identity = self.identity_dict_smpl[keyid_A]
+                    identity_B[i] = torch.FloatTensor(identity["identity_B_norm"]).to(
+                        self.device
+                    )
         else:
             identity_B = motion_x_dict_B["identity"]  # these include betas + gender
 
@@ -802,6 +844,21 @@ class CYCLIC_TMR(TEMOS):
                     self.validation_step_pred_embeddings.append(pred_embedding)
                     self.validation_step_gt_embeddings.append(gt_embedding)
 
+            # Generate all visualizations
+            # if visualize:
+            #     all_ref_frames_A = self.render_frames(ref_motions_un_A, color='green', tag="ref")
+            #     if self.run_cycle:
+            #         all_pred_frames_B_giv_A = self.render_frames(m_motions_un_B_giv_A, color='red',
+            #                                                      tag="pred_B_giv_A")
+            #         all_pred_frames_A_giv_B = self.render_frames(m_motions_un_A_giv_B, color='purple',
+            #                                                      tag="pred_A_giv_B")
+            #         all_pred_frames_A_giv_A = None
+            #     else:
+            #         all_pred_frames_A_giv_A = self.render_frames(m_motions_un_A_giv_A, color='blue',
+            #                                                      tag="pred_A_giv_A")
+            #         all_pred_frames_B_giv_A = None
+            #         all_pred_frames_A_giv_B = None
+
             else:
                 all_ref_frames_A = None
                 all_pred_frames_A_giv_A = None
@@ -825,6 +882,9 @@ class CYCLIC_TMR(TEMOS):
             for k, v in losses.items():
                 if torch.isnan(v).any():
                     print(f"{k} contains nan values")
+
+        if self.demo:
+            save_demo_meshes(m_verts_B_giv_A, self.bm_male.faces.cpu().numpy(), keyids_A, keyids_B, ckpt_name="DEMO", num_seqs=5)
 
         # # check if dyn_stability has nans
         # for k, v in losses.items():
@@ -897,11 +957,66 @@ class CYCLIC_TMR(TEMOS):
         else:
             return losses
 
+    def render_frames(self, data, color="grey", tag="pred"):
+        color = get_rgba_colors(color)
+
+        pred_params = smplh_breakdown(data, fk=self.fk_male)
+
+        # get num_videos equally spaced frames
+        pred_params["gender"] = pred_params["gender"][:, 0, -1]
+        select_indices = torch.linspace(
+            0, pred_params["gender"].shape[0] - 1, self.num_val_videos
+        ).long()
+        # get the corresponding SMPL parameters
+        pred_params = {k: v[select_indices] for k, v in pred_params.items()}
+
+        # loop over filtered frames
+        all_frames = []
+        for i in range(self.num_val_videos):
+            gender = int(pred_params["gender"][i])
+            if gender == 1:
+                smpl_layer = self.bm_male
+            elif gender == -1:
+                smpl_layer = self.bm_female
+            else:
+                assert gender == 1 or gender == -1
+            smpl_seq = SMPLSequence(
+                poses_body=pred_params["pose_body"][i, :, :],
+                poses_root=pred_params["root_orient"][i, :, :],
+                betas=pred_params["betas"][i, :, :],
+                trans=pred_params["trans"][i, :, :],
+                smpl_layer=smpl_layer,
+                z_up=True,
+                color=color,
+            )
+            # Create the headless renderer and add the sequence.
+            self.renderer.scene.add(smpl_seq)
+            frames = self.renderer.save_video(
+                video_dir=os.path.join(C.export_dir, f"{tag}_vis/{tag}_{i}.mp4"),
+                save_on_disk=False,
+            )
+
+            # Convert frames to array
+            frames = np.array(frames)
+            all_frames.append(frames)
+
+            self.renderer.scene.remove(smpl_seq)
+            # save frames as a log in wandb
+
+        # join all frames into one video horizontally
+        all_frames = np.concatenate(all_frames, axis=2)
+        return all_frames
+
     def validation_step(self, batch: Dict, batch_idx: int) -> Tensor:
         bs = len(batch["motion_x_dict"]["trans"])
         shuffle_idx = self.sampled_idx
 
         visualize = False
+
+        # if len(self.validation_step_ref_videos_A) < self.max_vid_rows:
+        #     # skip every other batch
+        #     if batch_idx % 2 == 0:
+        #         visualize = True
 
         losses, t_latents_A, t_latents_B, m_latents_A, m_latents_B, metrics, all_vis = (
             self.compute_loss(
@@ -938,7 +1053,80 @@ class CYCLIC_TMR(TEMOS):
 
         return losses["loss"]
 
+    def overlay_videos(self, video_A, video_B):
+        # overlay video A on video B
+        alpha = 0.5
+        combined_video = alpha * video_A + (1 - alpha) * video_B
+        return combined_video
+
     def on_validation_epoch_end(self):
+        # join all frames into one video vertically
+        # ref_videos_A = np.concatenate(self.validation_step_ref_videos_A, axis=1)
+        # ref_videos_A = np.transpose(ref_videos_A, (0, 3, 1, 2))
+        # wandb.log(
+        #     {"vis/ref_videos_A": [wandb.Video(ref_videos_A, fps=20, format="mp4")]}
+        # )
+        # if self.run_cycle:
+        #     val_videos_B_giv_A = np.concatenate(
+        #         self.validation_step_val_videos_B_giv_A, axis=1
+        #     )
+        #     val_videos_B_giv_A = np.transpose(val_videos_B_giv_A, (0, 3, 1, 2))
+        #     olay_videos_B_giv_A = self.overlay_videos(val_videos_B_giv_A, ref_videos_A)
+        #     wandb.log(
+        #         {
+        #             "vis/val_videos_B_giv_A": [
+        #                 wandb.Video(val_videos_B_giv_A, fps=20, format="mp4")
+        #             ]
+        #         }
+        #     )
+        #     wandb.log(
+        #         {
+        #             "vis/olay_videos_B_giv_A": [
+        #                 wandb.Video(olay_videos_B_giv_A, fps=20, format="mp4")
+        #             ]
+        #         }
+        #     )
+        #     val_videos_A_giv_B = np.concatenate(
+        #         self.validation_step_val_videos_A_giv_B, axis=1
+        #     )
+        #     val_videos_A_giv_B = np.transpose(val_videos_A_giv_B, (0, 3, 1, 2))
+        #     olay_videos_A_giv_B = self.overlay_videos(val_videos_A_giv_B, ref_videos_A)
+        #     wandb.log(
+        #         {
+        #             "vis/val_videos_A_giv_B": [
+        #                 wandb.Video(val_videos_A_giv_B, fps=20, format="mp4")
+        #             ]
+        #         }
+        #     )
+        #     wandb.log(
+        #         {
+        #             "vis/olay_videos_A_giv_B": [
+        #                 wandb.Video(olay_videos_A_giv_B, fps=20, format="mp4")
+        #             ]
+        #         }
+        #     )
+        # else:
+        #     val_videos_A_giv_A = np.concatenate(
+        #         self.validation_step_val_videos_A_giv_A, axis=1
+        #     )
+        #     val_videos_A_giv_A = np.transpose(val_videos_A_giv_A, (0, 3, 1, 2))
+        #     # overlay val_videos_a_giv_a on ref_videos_A
+        #     olay_videos_A_giv_A = self.overlay_videos(val_videos_A_giv_A, ref_videos_A)
+        #     wandb.log(
+        #         {
+        #             "vis/val_videos_A_giv_A": [
+        #                 wandb.Video(val_videos_A_giv_A, fps=20, format="mp4")
+        #             ]
+        #         }
+        #     )
+        #     wandb.log(
+        #         {
+        #             "vis/olay_videos_A_giv_A": [
+        #                 wandb.Video(olay_videos_A_giv_A, fps=20, format="mp4")
+        #             ]
+        #         }
+        #     )
+
         # Combine all metrics from the batches
         all_metrics = {}
         for metric_name in self.validation_step_metrics[0].keys():
