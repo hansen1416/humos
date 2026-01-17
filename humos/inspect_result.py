@@ -2,73 +2,53 @@ import torch
 import torch.nn.functional as F
 from scipy.spatial.transform import Rotation as sRot
 
+from humos.utils import constants
+from humos.utils.fk import ForwardKinematicsLayer
+from humos.utils.mesh_utils import smplh_breakdown
 
-def rot6d_to_matrix(d6: torch.Tensor) -> torch.Tensor:
-    """
-    d6: (..., 6)
-    returns: (..., 3, 3) rotation matrices
-    """
-    a1 = d6[..., 0:3]
-    a2 = d6[..., 3:6]
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    b1 = F.normalize(a1, dim=-1, eps=1e-8)
-    # make a2 orthogonal to b1
-    proj = (b1 * a2).sum(dim=-1, keepdim=True) * b1
-    b2 = F.normalize(a2 - proj, dim=-1, eps=1e-8)
-
-    b3 = torch.cross(b1, b2, dim=-1)
-    # columns are b1, b2, b3
-    R = torch.stack([b1, b2, b3], dim=-1)
-    return R
-
-
-def matrix_to_axis_angle(R: torch.Tensor) -> torch.Tensor:
-    """
-    R: (..., 3, 3) torch
-    returns: (..., 3) axis-angle (rotation vector)
-    """
-    R_np = R.detach().cpu().numpy().reshape(-1, 3, 3)
-    aa = sRot.from_matrix(R_np).as_rotvec()  # (N,3)
-    aa = torch.from_numpy(aa).to(R.device, dtype=R.dtype)
-    return aa.view(*R.shape[:-2], 3)
-
+fk_male = ForwardKinematicsLayer(
+    constants.SMPL_PATH,
+    gender="male",
+    num_joints=constants.SMPLH_BODY_JOINTS,
+    device=device,
+)
 
 d = torch.load("./debug_pred/000000_B_giv_A.pt", map_location="cpu")
 
-print(d.keys())
-print(d["pred_norm"].keys())
 
-for k, v in d["pred_norm"].items():
-    if torch.is_tensor(v):
-        print(k, v.shape, v.dtype)
+def add_batch_dim(pred_un: dict) -> dict:
+    out = {}
+    for k, v in pred_un.items():
+        if torch.is_tensor(v):
+            out[k] = v.unsqueeze(0)  # prepend batch dim
+        else:
+            out[k] = v
+    return out
 
-print("=============================================")
-print(d["pred_un"].keys())
-
-for k, v in d["pred_un"].items():
-    if torch.is_tensor(v):
-        print(k, v.shape, v.dtype)
 
 pred_un = d["pred_un"]
 
-T = pred_un["trans"].shape[0]
-J = pred_un["pose_6d_root_rel"].shape[1]
+pred_un_batched = add_batch_dim(pred_un)
 
-R_root = rot6d_to_matrix(pred_un["root_orient_6d_root_rel"])  # (T,3,3)
-R_body = rot6d_to_matrix(pred_un["pose_6d_root_rel"])  # (T,J,3,3)
+print("=============================================")
+print(pred_un_batched.keys())
 
-aa_root = matrix_to_axis_angle(R_root)  # (T,3)
-aa_body = matrix_to_axis_angle(R_body)  # (T,J,3)
+for k, v in pred_un_batched.items():
+    if torch.is_tensor(v):
+        print(k, v.shape, v.dtype)
 
-# Many SMPL layers want body pose flattened as (T, J*3)
-pose_body = aa_body.reshape(T, J * 3)  # (T, 63) if J=21
 
-print(pose_body.shape)
+print(pred_un_batched["betas"].shape)
 
-d["pred_un_root_orient_aa"] = aa_root.contiguous().cpu()
-d["pred_un_pose_body_aa"] = pose_body.contiguous().cpu()
+smpl_params = smplh_breakdown(pred_un_batched, fk=fk_male)
 
-torch.save(d, "./debug_pred/000000_B_giv_A_aa.pt")
+print(smpl_params.keys())
+
+smpl_params = {k: v[0] for k, v in smpl_params.items()}
+
+torch.save(smpl_params, "./debug_pred_un/000000_B_giv_A_aa.pt")
 
 """"
 Those keys are the **canonical SMPLH-control representation** HUMOS trains on (after `deconstruct_input` rehydrates the flattened feature vector and re-attaches identity). Interpreting each item in your dump:

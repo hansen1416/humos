@@ -10,3 +10,4 @@ __pycache__/
 wandb
 humos/stats/
 debug_pred/
+debug_pred_un/
