@@ -505,12 +505,12 @@ class CYCLIC_TMR(TEMOS):
 
         # motion -> motion (input to cycle is A)
         (
-            m_motions_A_giv_A,
-            m_motions_B_giv_A,
+            motions_identityA_giv_contentA,
+            motions_identityB_giv_contentA,
             m_latents_A,
             m_dists_A,
-            m_motions_B_giv_B,
-            m_motions_A_giv_B,
+            motions_identityB_giv_contentB,
+            motions_identityA_giv_contentB,
             m_latents_B,
             m_dists_B,
         ) = self.forward_cycle(
@@ -525,12 +525,12 @@ class CYCLIC_TMR(TEMOS):
             # choose which prediction to inspect
             if self.run_cycle:
                 pred_dict_norm = self.deconstruct_input(
-                    m_motions_B_giv_A[:, :, :-11], identity_B
+                    motions_identityB_giv_contentA[:, :, :-11], identity_B
                 )
                 tag = "B_giv_A"
             else:
                 pred_dict_norm = self.deconstruct_input(
-                    m_motions_A_giv_A[:, :, :-11], identity_A
+                    motions_identityA_giv_contentA[:, :, :-11], identity_A
                 )
                 tag = "A_giv_A"
 
@@ -573,20 +573,28 @@ class CYCLIC_TMR(TEMOS):
         )
         ref_motions_un_A = self.construct_input(ref_motions_un_A)
         m_motions_un_A_giv_A = self.normalizer.inverse(
-            self.deconstruct_input(m_motions_A_giv_A[:, :, :-11], identity_A)
+            self.deconstruct_input(
+                motions_identityA_giv_contentA[:, :, :-11], identity_A
+            )
         )
         m_motions_un_A_giv_A = self.construct_input(m_motions_un_A_giv_A)
         if self.run_cycle:
             m_motions_un_B_giv_A = self.normalizer.inverse(
-                self.deconstruct_input(m_motions_B_giv_A[:, :, :-11], identity_B)
+                self.deconstruct_input(
+                    motions_identityB_giv_contentA[:, :, :-11], identity_B
+                )
             )
             m_motions_un_B_giv_A = self.construct_input(m_motions_un_B_giv_A)
             m_motions_un_B_giv_B = self.normalizer.inverse(
-                self.deconstruct_input(m_motions_B_giv_B[:, :, :-11], identity_B)
+                self.deconstruct_input(
+                    motions_identityB_giv_contentB[:, :, :-11], identity_B
+                )
             )
             m_motions_un_B_giv_B = self.construct_input(m_motions_un_B_giv_B)
             m_motions_un_A_giv_B = self.normalizer.inverse(
-                self.deconstruct_input(m_motions_A_giv_B[:, :, :-11], identity_A)
+                self.deconstruct_input(
+                    motions_identityA_giv_contentB[:, :, :-11], identity_A
+                )
             )
             m_motions_un_A_giv_B = self.construct_input(m_motions_un_A_giv_B)
 
@@ -616,7 +624,7 @@ class CYCLIC_TMR(TEMOS):
         # compute the motion prior loss
         if self.run_cycle:
             inputs_B_giv_A = motion_x_dict_A.copy()
-            inputs_B_giv_A["x"] = m_motions_B_giv_A[:, :, :-11]
+            inputs_B_giv_A["x"] = motions_identityB_giv_contentA[:, :, :-11]
             inputs_B_giv_A["identity"] = identity_B
             losses["motion_prior"] = self.motion_prior_loss_fn(
                 motion_x_dict_A, inputs_B_giv_A
@@ -693,16 +701,16 @@ class CYCLIC_TMR(TEMOS):
         # Calculate loss on rotations and transl
         losses["recons"] = (
             + self.reconstruction_loss_fn(
-                self.deconstruct_input(m_motions_A_giv_A[:, :, :-11], m_motions_A_giv_A[:, :, -11:]),
+                self.deconstruct_input(motions_identityA_giv_contentA[:, :, :-11], motions_identityA_giv_contentA[:, :, -11:]),
                 self.deconstruct_input(ref_motions_A, identity_A))  # motion -> motion
         )
         if self.run_cycle:
             losses["recons"] += (
                     # + self.reconstruction_loss_fn(
-                    #     self.deconstruct_input(m_motions_B_giv_A[:, :, :-11], m_motions_B_giv_A[:, :, -11:]),
-                    #     self.deconstruct_input(m_motions_B_giv_B[:, :, :-11], m_motions_B_giv_B[:, :, -11:]))
+                    #     self.deconstruct_input(motions_identityB_giv_contentA[:, :, :-11], motions_identityB_giv_contentA[:, :, -11:]),
+                    #     self.deconstruct_input(motions_identityB_giv_contentB[:, :, :-11], motions_identityB_giv_contentB[:, :, -11:]))
                     + self.reconstruction_loss_fn(
-                self.deconstruct_input(m_motions_A_giv_B[:, :, :-11], m_motions_A_giv_B[:, :, -11:]),
+                self.deconstruct_input(motions_identityA_giv_contentB[:, :, :-11], motions_identityA_giv_contentB[:, :, -11:]),
                 self.deconstruct_input(ref_motions_A, identity_A))  # motion -> motion
             )
 
@@ -857,7 +865,7 @@ class CYCLIC_TMR(TEMOS):
             if self.compute_metrics["motion_prior"]:
                 if self.run_cycle:
                     inputs_B_giv_A = motion_x_dict_A.copy()
-                    inputs_B_giv_A["x"] = m_motions_B_giv_A[:, :, :-11]
+                    inputs_B_giv_A["x"] = motions_identityB_giv_contentA[:, :, :-11]
                     inputs_B_giv_A["identity"] = identity_B
                     pred_embedding = self.motion_prior_metrics.encode(inputs_B_giv_A, sample_mean=None, fact=None)
                     gt_embedding = self.motion_prior_metrics.encode(motion_x_dict_A, sample_mean=None, fact=None)
@@ -984,16 +992,6 @@ class CYCLIC_TMR(TEMOS):
                 batch, shuffle_idx, skinning=True, return_all=True, visualize=visualize
             )
         )
-        # if visualize:
-        #     ref_videos_A, val_videos_A_giv_A, val_videos_B_giv_A, val_videos_A_giv_B = (
-        #         all_vis
-        #     )
-        #     self.validation_step_ref_videos_A.append(ref_videos_A)
-        #     if self.run_cycle:
-        #         self.validation_step_val_videos_B_giv_A.append(val_videos_B_giv_A)
-        #         self.validation_step_val_videos_A_giv_B.append(val_videos_A_giv_B)
-        #     else:
-        #         self.validation_step_val_videos_A_giv_A.append(val_videos_A_giv_A)
 
         # Store the metrics
         self.validation_step_metrics.append(metrics)
