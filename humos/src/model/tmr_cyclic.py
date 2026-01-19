@@ -482,7 +482,7 @@ class CYCLIC_TMR(TEMOS):
 
         mask_A = motion_x_dict_A["mask"]
         ref_motions_A = motion_x_dict_A["x"]
-        identity_A = motion_x_dict_A["identity"]  # these include betas + gender
+        identity_A = motion_x_dict_A["identity"]
 
         # mask_B = motion_x_dict_B["mask"]
         # ref_motions_B = motion_x_dict_B["x"]
@@ -497,11 +497,7 @@ class CYCLIC_TMR(TEMOS):
                     self.device
                 )
         else:
-            identity_B = motion_x_dict_B["identity"]  # these include betas + gender
-
-        # # sentence embeddings
-        # sent_emb_A = batch["sent_emb"]
-        # sent_emb_B = batch["sent_emb"][shuffle_idx]
+            identity_B = motion_x_dict_B["identity"]
 
         # motion -> motion (input to cycle is A)
         (
