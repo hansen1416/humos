@@ -215,6 +215,9 @@ class CYCLIC_TMR(TEMOS):
         return_all: bool = False,
     ) -> List[Tensor]:
         # Encoding the inputs and sampling if needed
+        # `latent_vectors_A` is the **actual latent code** used by the decoder to generate motion. Shape is typically `[B, Z]` (batch × latent_dim) or similar. If you want to generate retargeted motions for many body shapes, this is the thing you reuse: encode once → decode many times with different `identity_B`.
+        # `distributions_A`
+        # This is the **parameterization of the latent distribution** produced by the encoder (only meaningful if the model is VAE-like). Usually a tuple like `(mu, logvar)` (or `(mu, sigma)`), representing a Gaussian posterior \(q(z \mid x, \text{identity})\). It is used for: - computing **KL divergence** regularization (`kl_loss_fn(...)` later uses `m_dists_A`), and/or - deciding how to sample `latent_vectors_A` (sample vs mean).
         latent_vectors_A, distributions_A = self.encode(
             inputs_A,
             identity_A,
@@ -223,23 +226,27 @@ class CYCLIC_TMR(TEMOS):
             return_distribution=True,
         )
         # Decoding the latent vector: generating motions
-        motions_A_giv_A = self.decode(latent_vectors_A, identity_A, lengths_A, mask_A)
+        motions_identityA_giv_contentA = self.decode(
+            latent_vectors_A, identity_A, lengths_A, mask_A
+        )
 
         if self.run_cycle:
             # Decoding the latent vector: generating motions
             # Note beta_B includes gender
-            motions_B_giv_A = self.decode(
+            motions_identityB_giv_contentA = self.decode(
                 latent_vectors_A, identity_B, lengths_A, mask_A
             )
 
             # Do not output the betas and gender, use GT
-            inputs_B_giv_A = inputs_A.copy()
-            inputs_B_giv_A["x"] = motions_B_giv_A[:, :, :-11]
-            inputs_B_giv_A["identity"] = identity_B
+            inputs_motion_identityB_giv_contentA = inputs_A.copy()
+            inputs_motion_identityB_giv_contentA["x"] = motions_identityB_giv_contentA[
+                :, :, :-11
+            ]
+            inputs_motion_identityB_giv_contentA["identity"] = identity_B
 
             # Encoding in the backward cycle
             latent_vectors_B, distributions_B = self.encode(
-                inputs_B_giv_A,
+                inputs_motion_identityB_giv_contentA,
                 identity_B,
                 sample_mean=sample_mean,
                 fact=fact,
@@ -247,36 +254,41 @@ class CYCLIC_TMR(TEMOS):
             )
 
             # Decoding in the backward cycle
-            motions_B_giv_B = self.decode(
+            motions_identityB_giv_contentB = self.decode(
                 latent_vectors_B, identity_B, lengths_A, mask_A
             )
 
             # Decoding in the backward cycle
-            motions_A_giv_B = self.decode(
+            motions_identityA_giv_contentB = self.decode(
                 latent_vectors_B, identity_A, lengths_A, mask_A
             )
         else:
             (
-                motions_B_giv_A,
-                motions_A_giv_B,
-                motions_B_giv_B,
+                motions_identityB_giv_contentA,
+                motions_identityA_giv_contentB,
+                motions_identityB_giv_contentB,
                 latent_vectors_B,
                 distributions_B,
             ) = (None, None, None, None, None)
 
         if return_all:
             return (
-                motions_A_giv_A,
-                motions_B_giv_A,
+                motions_identityA_giv_contentA,
+                motions_identityB_giv_contentA,
                 latent_vectors_A,
                 distributions_A,
-                motions_B_giv_B,
-                motions_A_giv_B,
+                motions_identityB_giv_contentB,
+                motions_identityA_giv_contentB,
                 latent_vectors_B,
                 distributions_B,
             )
 
-        return motions_A_giv_A, motions_B_giv_A, motions_B_giv_B, motions_A_giv_B
+        return (
+            motions_identityA_giv_contentA,
+            motions_identityB_giv_contentA,
+            motions_identityB_giv_contentB,
+            motions_identityA_giv_contentB,
+        )
 
     def run_smpl_fk(self, data, skinning=True):
         gender = data["identity"][:, 0, -1]
@@ -948,6 +960,20 @@ class CYCLIC_TMR(TEMOS):
             return losses
 
     def validation_step(self, batch: Dict, batch_idx: int) -> Tensor:
+        """
+        Docstring for validation_step
+
+        :param self: Description
+        :param batch:
+            batch keys: dict_keys(['text', 'keyid', 'motion_x_dict'])
+            motion_x_dict keys: dict_keys(['betas', 'trans', 'gender', 'root_orient_6d_root_rel', 'pose_6d_root_rel', 'root_trans_diff', 'root_orient_diff_6d_root_rel', 'length', 'mask'])
+        :type batch: Dict
+        :param batch_idx: Description
+        :type batch_idx: int
+        :return: Description
+        :rtype: Tensor
+        """
+
         bs = len(batch["motion_x_dict"]["trans"])
         shuffle_idx = self.sampled_idx
 

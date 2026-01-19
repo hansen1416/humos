@@ -5,7 +5,7 @@
             "name": "Test",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/humos/test.py",
+            "program": "${workspaceFolder}/humos/infer.py",
             "console": "integratedTerminal",
             "python": "/home/hlz/anaconda3/envs/humos_p310/bin/python",
             "args": [
