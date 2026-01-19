@@ -880,81 +880,94 @@ class CYCLIC_TMR(TEMOS):
         """
 
         bs = len(batch["motion_x_dict"]["trans"])
-        shuffle_idx = self.sampled_idx
 
-        visualize = False
+        keyids_A = batch["keyid"]
+        motion_x_dict_A = batch["motion_x_dict"]
+        motion_x_dict_A = self.construct_input(motion_x_dict_A)
 
-        losses, t_latents_A, t_latents_B, m_latents_A, m_latents_B, metrics, all_vis = (
-            self.compute_loss(
-                batch, shuffle_idx, skinning=True, return_all=True, visualize=visualize
-            )
+        mask_A = motion_x_dict_A["mask"]
+        identity_A = motion_x_dict_A["identity"]
+
+        # beta_B = torch.tensor([ 1.1109, -1.0793,  1.4197, -0.6613, -1.0826, -2.0437,
+        #                     1.1971,  1.0648,  0.8288,  2.4210], dtype=torch.float32)
+
+        identity_B = torch.tensor(
+            [
+                1.0472344,
+                -1.3409365,
+                0.97568285,
+                -0.4312587,
+                -1.2148422,
+                -1.4349254,
+                0.7715073,
+                1.0130371,
+                0.8836092,
+                2.6459184,
+                -1,
+            ],
+            dtype=torch.float32,
+            device=self.device,
         )
 
-        # Store the metrics
-        self.validation_step_metrics.append(metrics)
+        identity_B = identity_B.view(1, 1, 11).repeat(
+            identity_A.shape[0], identity_A.shape[1], 1
+        )
 
-        # Store the latent vectors
-        self.validation_step_m_latents_A.append(m_latents_A)
-        self.validation_step_m_latents_B.append(m_latents_B)
+        # motion -> motion (input to cycle is A)
+        (
+            motions_identityA_giv_contentA,
+            motions_identityB_giv_contentA,
+            m_latents_A,
+            m_dists_A,
+            motions_identityB_giv_contentB,
+            motions_identityA_giv_contentB,
+            m_latents_B,
+            m_dists_B,
+        ) = self.forward_cycle(
+            motion_x_dict_A, identity_A, identity_B, mask_A=mask_A, return_all=True
+        )
 
-        for loss_name in sorted(losses):
-            loss_val = losses[loss_name]
-            self.log(
-                f"val_step/{loss_name}",
-                loss_val,
-                on_epoch=True,
-                on_step=True,
-                batch_size=bs,
+        # ---- DEBUG: save predicted motion dict(s) to disk ----
+        out_dir = "./debug_pred"
+        os.makedirs(out_dir, exist_ok=True)
+
+        # choose which prediction to inspect
+        pred_dict_norm = self.deconstruct_input(
+            motions_identityB_giv_contentA[:, :, :-11], identity_B
+        )
+        tag = "B_giv_A"
+
+        # also compute unnormalized version (often easier to interpret)
+        pred_dict_un = self.normalizer.inverse(pred_dict_norm)
+
+        # save per-sample (safe even if bs>1)
+        bs = next(v.shape[0] for v in pred_dict_norm.values() if torch.is_tensor(v))
+        for i in range(bs):
+            key = (
+                keyids_A[i] if isinstance(keyids_A, (list, tuple)) else str(keyids_A[i])
             )
 
-        return losses["loss"]
+            pack = {
+                "keyid": key,
+                "tag": tag,
+                "pred_norm": {
+                    k: (v[i].detach().cpu() if torch.is_tensor(v) else v)
+                    for k, v in pred_dict_norm.items()
+                },
+                "pred_un": {
+                    k: (v[i].detach().cpu() if torch.is_tensor(v) else v)
+                    for k, v in pred_dict_un.items()
+                },
+                "identity_A": identity_A[i].detach().cpu(),
+                "identity_B": (
+                    identity_B[i].detach().cpu() if self.run_cycle else None
+                ),
+            }
+            save_path = os.path.join(out_dir, f"{key}_{tag}.pt")
+            torch.save(pack, save_path)
+            print(f"[debug] saved: {save_path}")
+
+        return []
 
     def on_validation_epoch_end(self):
-        # Combine all metrics from the batches
-        all_metrics = {}
-        for metric_name in self.validation_step_metrics[0].keys():
-            if metric_name == "in_hull_label":
-                in_hull_label = np.concatenate(
-                    [x[metric_name] for x in self.validation_step_metrics]
-                )
-                # in_hull_label contains, 1, 0 and -1. Find the percentage of 1s in the in_hull_label
-                all_metrics["in_bos"] = np.mean(in_hull_label == 1)
-            # Get the mean metrics in cms
-            all_metrics[metric_name] = np.mean(
-                [x[metric_name] * 100 for x in self.validation_step_metrics]
-            )
-            wandb.log({f"metrics/{metric_name}_epoch": all_metrics[metric_name]})
-            print(f"{metric_name}: {all_metrics[metric_name]}")
-
-        # Calculation motion prior metrics
-        if self.compute_metrics["motion_prior"]:
-            if self.run_cycle:
-                fid, pred_diversity, gt_diversity = (
-                    self.motion_prior_metrics.compute_fid_diversity(
-                        self.validation_step_pred_embeddings,
-                        self.validation_step_gt_embeddings,
-                    )
-                )
-                all_metrics["fid"] = np.mean(fid)
-                all_metrics["pred_diversity"] = np.mean(pred_diversity)
-                all_metrics["gt_diversity"] = np.mean(gt_diversity)
-                wandb.log({"metrics/fid_epoch": all_metrics["fid"]})
-                wandb.log(
-                    {"metrics/pred_diversity_epoch": all_metrics["pred_diversity"]}
-                )
-                wandb.log({"metrics/gt_diversity_epoch": all_metrics["gt_diversity"]})
-
-        # save epoch
-        wandb.log({"current_epoch": self.current_epoch})
-        update_best_metrics()
-
-        # Record best metrics on wandb
-        self.validation_step_m_latents_A.clear()
-        self.validation_step_m_latents_B.clear()
-        # self.validation_step_ref_videos_A.clear()
-        # self.validation_step_val_videos_A_giv_A.clear()
-        # self.validation_step_val_videos_B_giv_A.clear()
-        # self.validation_step_val_videos_A_giv_B.clear()
-        self.validation_step_metrics.clear()
-        self.validation_step_pred_embeddings.clear()
-        self.validation_step_gt_embeddings.clear()
+        return
