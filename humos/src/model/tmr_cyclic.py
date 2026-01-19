@@ -813,39 +813,6 @@ class CYCLIC_TMR(TEMOS):
                 bs, nf, _, _ = coms.shape
                 hull_verts = [hull_verts[i:i + nf] for i in range(0, len(hull_verts), nf)]
 
-
-                # # check if dyn_stability has nans
-                # import ipdb;
-                # ipdb.set_trace()
-                # out_dir = f'./debug_dyn_stability/dyn'
-                # os.makedirs(out_dir, exist_ok=True)
-                #
-                # # plot pred meshes
-                # for i in range(cops.shape[0]):
-                #     cop = cops[i]
-                #     com = coms[i]
-                #     zmp = zmps[i]
-                #     min_pos = min_pos_distance[i]
-                #     min_sign = min_signed_distance[i]
-                #     hull_vert = hull_verts[i]
-                #
-                #     # repeat the last frame in zmps
-                #     debug_dict = {}
-                #     debug_dict['vertices'] = m_verts_B_giv_A[i].detach().cpu().numpy()
-                #     debug_dict['faces'] = self.bm_male.faces.detach().cpu().numpy()
-                #     debug_dict['cops'] = cop.detach().cpu().numpy()
-                #     debug_dict['zmps_raw'] = zmp.detach().cpu().numpy()
-                #     debug_dict['coms'] = com.detach().cpu().numpy()
-                #     debug_dict[
-                #         'mass_per_vert_init'] = self.biomechanical_evaluator.init_mass_per_vert[0].detach().cpu().numpy()
-                #     debug_dict[
-                #         'per_part_multiplier'] = self.biomechanical_evaluator.per_part_multiplier[0].detach().cpu().numpy()
-                #     debug_dict['min_pos'] = min_pos.detach().cpu().numpy()
-                #     debug_dict['min_sign'] = min_sign.detach().cpu().numpy()
-                #     debug_dict['hull_verts'] = [item.detach().cpu().numpy() if item is not None else item for item in hull_vert]
-                #     torch.save(debug_dict, os.path.join(out_dir, f'{i:04d}.pt'))
-                #     print(f"Saved metadata to {os.path.join(out_dir, f'{i:04d}.npz')}")
-
                 metrics["perc_dyn_stable"] = perc_dyn_stable.detach().cpu().numpy()
                 metrics["mean_dyn_positive_distance"] = mean_min_positive_distance.detach().cpu().numpy()
 
@@ -891,72 +858,6 @@ class CYCLIC_TMR(TEMOS):
             for k, v in losses.items():
                 if torch.isnan(v).any():
                     print(f"{k} contains nan values")
-
-        # # check if dyn_stability has nans
-        # for k, v in losses.items():
-        #     if torch.isnan(v).any():
-        #         print('NAN! NAN! NAN! NAN! NAN! NAN! NAN! NAN! NAN! NAN! NAN! NAN! NAN!')
-        #         import ipdb;
-        #         ipdb.set_trace()
-        #         out_dir = f'./debug_dyn_stability/pred'
-        #         os.makedirs(out_dir, exist_ok=True)
-        #         coms = self.biomechanical_evaluator.coms
-        #
-        #         # plot pred meshes
-        #         for i in range(cops.shape[0]):
-        #             com = coms[i]
-        #             cop = cops[i]
-        #             zmp = zmps[i]
-        #             # repeat the last frame in zmps
-        #             zmp = torch.cat([zmp[0].unsqueeze(0), zmp, zmp[-1].unsqueeze(0)], dim=0)
-        #             cop = torch.cat([cop[0].unsqueeze(0), cop, cop[-1].unsqueeze(0)], dim=0)
-        #             debug_dict = {}
-        #             debug_dict['vertices'] = m_verts_B_giv_A[i].detach().cpu().numpy()
-        #             debug_dict['faces'] = self.bm_male.faces.detach().cpu().numpy()
-        #             debug_dict['cops'] = cop.detach().cpu().numpy()
-        #             debug_dict['zmps_raw'] = zmp.detach().cpu().numpy()
-        #             debug_dict['coms'] = com.detach().cpu().numpy()
-        #             debug_dict['mass_per_vert_init'] = self.biomechanical_evaluator.init_mass_per_vert[
-        #                 0].detach().cpu().numpy()
-        #             debug_dict['per_part_multiplier'] = self.biomechanical_evaluator.per_part_multiplier[
-        #                 0].detach().cpu().numpy()
-        #             torch.save(debug_dict, os.path.join(out_dir, f'{i:04d}.pt'))
-        #             print(f"Saved metadata to {os.path.join(out_dir, f'{i:04d}.npz')}")
-        #
-        #         # plot gt meshes
-        #         ref_verts_A, ref_joints_A = self.run_smpl_fk(ref_motions_un_A, skinning=True)
-        #         setup_biomechanical_evaluator(self.biomechanical_evaluator,
-        #                                       joints=ref_joints_A,
-        #                                       verts=ref_verts_A)
-        #         cops = self.biomechanical_evaluator.cops
-        #         # take the center frames
-        #         center_frame = self.biomechanical_evaluator.center_frame
-        #         cops = cops[:, center_frame:-center_frame, :, :]
-        #         zmps = self.biomechanical_evaluator.zmps
-        #
-        #         # plot pred meshes
-        #         out_dir = f'./debug_dyn_stability/gt'
-        #         os.makedirs(out_dir, exist_ok=True)
-        #         for i in range(cops.shape[0]):
-        #             cop = cops[i]
-        #             zmp = zmps[i]
-        #             # repeat the last frame in zmps
-        #             zmp = torch.cat([zmp[0].unsqueeze(0), zmp, zmp[-1].unsqueeze(0)], dim=0)
-        #             cop = torch.cat([cop[0].unsqueeze(0), cop, cop[-1].unsqueeze(0)], dim=0)
-        #             debug_dict = {}
-        #             debug_dict['vertices'] = ref_verts_A[i].detach().cpu().numpy()
-        #             debug_dict['faces'] = self.bm_male.faces.detach().cpu().numpy()
-        #             debug_dict['cops'] = cop.detach().cpu().numpy()
-        #             debug_dict['zmps_raw'] = zmp.detach().cpu().numpy()
-        #             debug_dict['zmps_smoothed'] = zmp.detach().cpu().numpy()
-        #             debug_dict[
-        #                 'mass_per_vert_init'] = self.biomechanical_evaluator.init_mass_per_vert.detach().cpu().numpy()
-        #             debug_dict[
-        #                 'mass_per_vert_optim'] = self.biomechanical_evaluator.mass_per_vert.detach().cpu().numpy()
-        #             debug_dict[
-        #                 'per_part_multiplier'] = self.biomechanical_evaluator.per_part_multiplier.detach().cpu().numpy()
-        #             torch.save(debug_dict, os.path.join(out_dir, f'{i:04d}.pt'))
-        #             print(f"Saved metadata to {os.path.join(out_dir, f'{i:04d}.npz')}")
 
         if return_all:
             return losses, None, None, m_latents_A, m_latents_B, metrics, all_vis
