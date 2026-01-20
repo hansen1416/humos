@@ -40,7 +40,12 @@ for k, v in pred_un_batched.items():
         print(k, v.shape, v.dtype)
 
 
-print(pred_un_batched["betas"].shape)
+# print(pred_un_batched["betas"].shape)
+
+for k, v in pred_un_batched.items():
+    print(k)
+    print(v.shape)
+
 
 smpl_params = smplh_breakdown(pred_un_batched, fk=fk_male)
 
@@ -48,7 +53,11 @@ print(smpl_params.keys())
 
 smpl_params = {k: v[0] for k, v in smpl_params.items()}
 
-torch.save(smpl_params, "./debug_pred_un/000000_B_giv_A_aa.pt")
+for k, v in smpl_params.items():
+    print(k)
+    print(v.shape)
+
+# torch.save(smpl_params, "./debug_pred_un/000000_B_giv_A_aa.pt")
 
 """"
 Those keys are the **canonical SMPLH-control representation** HUMOS trains on (after `deconstruct_input` rehydrates the flattened feature vector and re-attaches identity). Interpreting each item in your dump:
