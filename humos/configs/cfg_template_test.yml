@@ -10,7 +10,7 @@ INPUT:
   DATA: "humanml3d" #  'humanml3d' or 'kitml' or 'babel'
 
 DATASET:
-  BATCH_SIZE: 10
+  BATCH_SIZE: 1
   NUM_WORKERS: 1
 
 CHECKPOINT:

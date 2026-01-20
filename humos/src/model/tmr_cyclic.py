@@ -516,3 +516,43 @@ class CYCLIC_TMR(TEMOS):
 
     def on_validation_epoch_end(self):
         return
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+
+        print(batch["keyid"])
+
+        return
+
+        keyids = batch["keyid"]
+        motion_x = self.construct_input(batch["motion_x_dict"])
+        mask = motion_x["mask"]
+        identity_A = motion_x["identity"]
+
+        identity_B = torch.tensor([...], device=self.device, dtype=torch.float32)
+        identity_B = identity_B.view(1, 1, 11).repeat(
+            identity_A.shape[0], identity_A.shape[1], 1
+        )
+
+        out = self.forward_cycle(
+            motion_x, identity_A, identity_B, mask_A=mask, return_all=True
+        )
+        motions_identityB_giv_contentA = out[1]
+
+        pred_norm = self.deconstruct_input(
+            motions_identityB_giv_contentA[:, :, :-11], identity_B
+        )
+        pred_un = self.normalizer.inverse(pred_norm)
+        smpl_params = smplh_breakdown(pred_un, fk=self.fk_male)
+
+        # IMPORTANT: save per-sample, not keyids[0]
+        if self.trainer.is_global_zero:
+            out_dir = "./debug_pred"
+            os.makedirs(out_dir, exist_ok=True)
+            bs = len(keyids)
+            for i in range(bs):
+                save_path = os.path.join(out_dir, f"{keyids[i]}_B_giv_A.pt")
+                torch.save(
+                    {k: v[i].detach().cpu() for k, v in smpl_params.items()}, save_path
+                )
+
+        return None

@@ -11,3 +11,4 @@ wandb
 humos/stats/
 debug_pred/
 debug_pred_un/
+output/

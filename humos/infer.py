@@ -49,6 +49,9 @@ def test(hparams):
     logger.info("Loading the dataloaders")
 
     val_dataset = get_text_motion_dataset(hparams, split="test")
+
+    print(len(val_dataset))
+
     val_dataloader = DataLoader(
         val_dataset,
         batch_size=hparams.DATASET.BATCH_SIZE,
@@ -63,38 +66,23 @@ def test(hparams):
     # Get the TMR model
     model = initialize_model(hparams, ckpt, renderer=ait_renderer)
 
-    pl_callbacks = [
-        pl.callbacks.ModelCheckpoint(
-            filename="latest-{epoch}", every_n_epochs=1, save_top_k=1, save_last=True
-        ),
-        pl.callbacks.ModelCheckpoint(
-            filename="latest-{epoch}",
-            monitor="step",
-            mode="max",
-            every_n_epochs=hparams.CHECKPOINT.EVERY_N_EPOCHS,
-            save_top_k=hparams.CHECKPOINT.SAVE_TOP_K,
-            save_last=False,
-        ),
-        ProgressLogger(
-            precision=hparams.CHECKPOINT.PRECISION,
-        ),
-        TQDMProgressBar(),
-    ]
-
     logger.info("Training")
     trainer = pl.Trainer(
-        max_epochs=hparams.TRAINING.MAX_EPOCHS,
-        log_every_n_steps=hparams.TRAINING.LOG_EVERY_N_STEPS,
-        num_sanity_val_steps=hparams.TRAINING.NUM_SANITY_VAL_STEPS,
-        check_val_every_n_epoch=hparams.TRAINING.CHECK_VAL_EVERY_N_EPOCH,
         accelerator="gpu",
-        devices=hparams.TRAINING.DEVICES,
+        devices=hparams.TRAINING.DEVICES,  # e.g., 1 or [0]
         logger=False,
-        callbacks=pl_callbacks,
-        # gradient_clip_val=1.0,
-        # gradient_clip_algorithm="norm",
+        enable_checkpointing=False,
+        enable_progress_bar=True,
+        enable_model_summary=False,
+        callbacks=[],  # or keep only what you truly need
+        num_sanity_val_steps=0,  # irrelevant for predict, but keep safe
+        limit_train_batches=0,  # optional; makes intent explicit
+        limit_val_batches=0,  # optional
     )
-    trainer.validate(model, val_dataloader)
+
+    preds = trainer.predict(model, dataloaders=val_dataloader, return_predictions=False)
+
+    print(preds)
 
 
 if __name__ == "__main__":
