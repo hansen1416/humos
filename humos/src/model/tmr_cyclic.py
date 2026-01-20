@@ -196,10 +196,6 @@ class CYCLIC_TMR(TEMOS):
             device=device,
         )
 
-        identity_pkl = "./datasets/splits/identity_dict_test_split_smpl.pkl"
-        with open(identity_pkl, "rb") as f:
-            self.identity_dict_smpl = pkl.load(f)
-
         # args = Arguments('./configs', filename='generative.yaml')
         # self.nemf_model = NemfArchitecture(args, ngpu=1)
 

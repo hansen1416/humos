@@ -56,9 +56,6 @@ class TextMotionDataset(Dataset):
         # remove too short or too long annotations
         self.annotations = load_annotations(path)
 
-        # only keep one
-        self.annotations = {k: v for k, v in self.annotations.items() if k == "000000"}
-
         # filter annotations (min/max)
         # but not for the test set
         # otherwise it is not fair for everyone
