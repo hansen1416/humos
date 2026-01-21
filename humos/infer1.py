@@ -40,18 +40,6 @@ def _to_device(x: Any, device: torch.device) -> Any:
     return x
 
 
-def _slice_batch_dict(d: Dict[str, Any], i: int, batch_size: int) -> Dict[str, Any]:
-    """Slice tensors in a dict on the leading batch dimension when possible."""
-    out: Dict[str, Any] = {}
-    for k, v in d.items():
-        if torch.is_tensor(v) and v.ndim >= 1 and v.shape[0] == batch_size:
-            out[k] = v[i].detach().cpu()
-        else:
-            # non-tensors or tensors not batched on dim-0
-            out[k] = v
-    return out
-
-
 def get_text_motion_dataset(hparams, split: str):
     motion_loader, text_to_sent_emb, text_to_token_emb = initialize_dataloaders(hparams)
 
@@ -247,7 +235,8 @@ def run_inference(hparams, all_betas) -> None:
 
     dataloader = DataLoader(
         dataset,
-        batch_size=hparams.DATASET.BATCH_SIZE,
+        # batch_size=hparams.DATASET.BATCH_SIZE,
+        batch_size=1,
         num_workers=hparams.DATASET.NUM_WORKERS,
         collate_fn=collate_fn,
         shuffle=False,
@@ -275,9 +264,8 @@ def run_inference(hparams, all_betas) -> None:
 
     all_betas_norm = normalize_betas_np(all_betas)
 
-    table = build_betas_gender_table(all_betas_norm)  # [64*3, 11]
-
     for _, batch in enumerate(tqdm(dataloader, desc="infer", dynamic_ncols=True)):
+        # we are setting the btach size = 1
         batch = _to_device(batch, device)
 
         keyids_A = batch["keyid"]  # list-like, length = bs
@@ -285,47 +273,80 @@ def run_inference(hparams, all_betas) -> None:
         mask_A = motion_x_dict_A["mask"]
         identity_A = motion_x_dict_A["identity"]
 
-        bs = identity_A.shape[0]
+        # bs = identity_A.shape[0]
         T = identity_A.shape[1]
 
-        # todo
-        identity_B = ...
+        for gender in [-1, 0, 1]:
 
-        # Forward cycle: A content, B identity
-        outputs = model.forward_cycle(
-            motion_x_dict_A,
-            identity_A,
-            identity_B,
-            mask_A=mask_A,
-            return_all=True,
-            # make inference deterministic unless you explicitly want sampling
-            sample_mean=True,
-        )
-        motions_identityB_giv_contentA = outputs[1]
+            # accumulate 64 retargeted results (one per beta) for this gender
+            acc = {
+                "betas": [],
+                "gender": [],
+                "root_orient": [],
+                "pose_body": [],
+                "trans": [],
+            }
 
-        # Decode back into feature dict, then unnormalize
-        pred_dict_norm = model.deconstruct_input(
-            motions_identityB_giv_contentA[:, :, :-11],
-            identity_B,
-        )
-        pred_dict_un = model.normalizer.inverse(pred_dict_norm)
+            for i in range(all_betas_norm.shape[0]):
 
-        # Convert to SMPLH parameters (batched)
-        # fk_male is OK for kinematic decomposition; gender-specific mesh can be handled downstream.
-        smpl_params_batched = smplh_breakdown(pred_dict_un, fk=model.fk_male)
+                beta_norm = all_betas_norm[i].astype(np.float32)  # [10]
+                # we don't have to keep this, pred_dict_un["betas"] will get the unormalized value, equal to this one.
+                # beta_raw = all_betas[i].astype(np.float32)  # [10]
+                g = np.float32(gender)
 
-        # Save one file per input keyid
-        for i in range(bs):
-            key = keyids_A[i]
-            save_path = os.path.join(out_root, f"{key}.pt")
-            # dict_keys(["betas", "gender", "root_orient", "pose_body", "trans"])
-            to_save = _slice_batch_dict(smpl_params_batched, i, batch_size=bs)
+                # beta_norm + gender
+                identity_B11 = np.concatenate(
+                    [beta_norm, np.array([g], dtype=np.float32)], axis=0
+                )
 
-            for k, v in to_save.items():
-                print(k)
-                print(v.shape)
+                identity_B11 = torch.from_numpy(identity_B11).to(
+                    device=device, dtype=torch.float32
+                )
 
-            torch.save(to_save, save_path)
+                identity_B = identity_B11.view(1, 1, 11).expand(1, T, 11).contiguous()
+
+                # Forward cycle: A content, B identity
+                outputs = model.forward_cycle(
+                    motion_x_dict_A,
+                    identity_A,
+                    identity_B,
+                    mask_A=mask_A,
+                    return_all=True,
+                    # make inference deterministic unless you explicitly want sampling
+                    sample_mean=True,
+                )
+                motions_identityB_giv_contentA = outputs[1]
+
+                # Decode back into feature dict, then unnormalize
+                pred_dict_norm = model.deconstruct_input(
+                    motions_identityB_giv_contentA[:, :, :-11],
+                    identity_B,
+                )
+
+                pred_dict_un = model.normalizer.inverse(pred_dict_norm)
+
+                # Convert to SMPLH parameters (batched)
+                # fk_male is OK for kinematic decomposition; gender-specific mesh can be handled downstream.
+                # betas: torch.Size([1, 200, 10])
+                # gender: torch.Size([1, 200, 1])
+                # root_orient: torch.Size([1, 200, 3])
+                # pose_body: torch.Size([1, 200, 63])
+                # trans: torch.Size([1, 200, 3])
+                smpl_params_batched = smplh_breakdown(pred_dict_un, fk=model.fk_male)
+
+                # append (drop bs dim=1) -> [T, D]
+                for k in acc.keys():
+                    v = smpl_params_batched[k]
+                    acc[k].append(v.detach().cpu().squeeze(0))
+
+            # stack 64 betas for this gender: [64, T, D]
+            # betas: torch.Size([64, 200, 10]); gender: torch.Size([64, 200, 1]); root_orient: torch.Size([64, 200, 3]); pose_body: torch.Size([64, 200, 63]); trans: torch.Size([64, 200, 3])
+            stacked = {k: torch.stack(vlist, dim=0) for k, vlist in acc.items()}
+
+            # when set batch_szie=1, keyids_A[0] is fine
+            save_path = os.path.join(out_root, f"{keyids_A[0]}_{gender}.pt")
+            torch.save(stacked, save_path)
+            print(f"Saved: {save_path}")
 
         break
 
