@@ -9,3 +9,5 @@
 - Define quantitative thresholds to determine which results are acceptable.
 
 - Select high-quality results and integrate them into the imitation learning training loop.
+
+- check the musk, make sure every frame is valid
