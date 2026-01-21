@@ -264,6 +264,8 @@ def run_inference(hparams, all_betas) -> None:
 
     all_betas_norm = normalize_betas_np(all_betas)
 
+    batch_idx = 0
+
     for _, batch in enumerate(tqdm(dataloader, desc="infer", dynamic_ncols=True)):
         # we are setting the btach size = 1
         batch = _to_device(batch, device)
@@ -348,7 +350,10 @@ def run_inference(hparams, all_betas) -> None:
             torch.save(stacked, save_path)
             print(f"Saved: {save_path}")
 
-        break
+        batch_idx += 1
+
+        if batch_idx > 10:
+            break
 
     logger.info("Done.")
 
