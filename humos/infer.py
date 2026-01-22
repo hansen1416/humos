@@ -345,6 +345,8 @@ def run_inference(hparams, all_betas) -> None:
             # betas: torch.Size([64, 200, 10]); gender: torch.Size([64, 200, 1]); root_orient: torch.Size([64, 200, 3]); pose_body: torch.Size([64, 200, 63]); trans: torch.Size([64, 200, 3])
             stacked = {k: torch.stack(vlist, dim=0) for k, vlist in acc.items()}
 
+            stacked["text"] = batch["text"]
+
             # when set batch_szie=1, keyids_A[0] is fine
             save_path = os.path.join(out_root, f"{keyids_A[0]}_{gender}.pt")
             torch.save(stacked, save_path)

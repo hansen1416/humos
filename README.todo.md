@@ -1,3 +1,5 @@
+- the highet is not accurate for humanoids
+
 - Modify the prediction method to support multiple body shapes (3 genders × 64 shapes each).
 
 - Run inference once over the full dataset, saving predictions for every batch.
