@@ -22,6 +22,7 @@ from tqdm import tqdm
 from loguru import logger
 import numpy as np
 
+
 from aitviewer.models.smpl import SMPLLayer
 from humos.src.data.text_motion import TextMotionDataset
 from humos.src.initialize import initialize_dataloaders, initialize_model
@@ -215,6 +216,7 @@ def build_betas_gender_table(
 # ---------------------------------------------------------------------
 # Grounding: compute a static (frame-0) ground offset from SMPL-H vertices
 # ---------------------------------------------------------------------
+
 def _gender_value_to_str(g: float) -> str:
     """Map identity gender value to SMPLLayer gender string."""
     if g == 1 or g == 1.0:
@@ -229,11 +231,11 @@ def _gender_value_to_str(g: float) -> str:
 def compute_static_ground_offset_height(
     bm: SMPLLayer,
     *,
-    betas: torch.Tensor,  # [1, 10]
-    pose_body: torch.Tensor,  # [1, 63]
+    betas: torch.Tensor,        # [1, 10]
+    pose_body: torch.Tensor,    # [1, 63]
     root_orient: torch.Tensor,  # [1, 3]
-    trans: torch.Tensor,  # [1, 3]
-    up_axis: int = 2,  # SMPL/AMASS are typically Z-up
+    trans: torch.Tensor,        # [1, 3]
+    up_axis: int = 2,           # SMPL/AMASS are typically Z-up
     safety_margin: float = 0.002,
 ) -> torch.Tensor:
     """
@@ -311,8 +313,6 @@ def run_inference(hparams, all_betas) -> None:
     logger.info(f"Saving outputs to: {out_root}")
 
     all_betas_norm = normalize_betas_np(all_betas)
-
-    batch_idx = 0
 
     for _, batch in enumerate(tqdm(dataloader, desc="infer", dynamic_ncols=True)):
         # we are setting the btach size = 1
@@ -404,7 +404,6 @@ def run_inference(hparams, all_betas) -> None:
                     up_axis=2,
                     safety_margin=0.002,
                 )  # scalar tensor on `device`
-
                 acc["offset_height"].append(offset_h.detach().cpu().squeeze(0))
 
                 # append (drop bs dim=1) -> [T, D]
@@ -416,21 +415,12 @@ def run_inference(hparams, all_betas) -> None:
             # betas: torch.Size([64, 200, 10]); gender: torch.Size([64, 200, 1]); root_orient: torch.Size([64, 200, 3]); pose_body: torch.Size([64, 200, 63]); trans: torch.Size([64, 200, 3])
             stacked = {k: torch.stack(vlist, dim=0) for k, vlist in acc.items()}
 
-            # for k, v in stacked.items():
-            #     print(k)
-            #     print(v.shape)
-
-            stacked["text"] = batch["text"]
-
             # when set batch_szie=1, keyids_A[0] is fine
             save_path = os.path.join(out_root, f"{keyids_A[0]}_{gender}.pt")
-            # torch.save(stacked, save_path)
+            torch.save(stacked, save_path)
             print(f"Saved: {save_path}")
 
-        batch_idx += 1
-
-        if batch_idx > 10:
-            break
+        break
 
     logger.info("Done.")
 
