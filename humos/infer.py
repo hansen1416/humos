@@ -55,27 +55,6 @@ def get_text_motion_dataset(hparams, split: str):
     )
 
 
-def _default_identity_B(device: torch.device) -> torch.Tensor:
-    """Default target identity (10 betas + gender). Gender: +1 male, -1 female."""
-    return torch.tensor(
-        [
-            1.0472344,
-            -1.3409365,
-            0.97568285,
-            -0.4312587,
-            -1.2148422,
-            -1.4349254,
-            0.7715073,
-            1.0130371,
-            0.8836092,
-            2.6459184,
-            -1.0,
-        ],
-        dtype=torch.float32,
-        device=device,
-    )
-
-
 def sample_betas_energy_uniform(
     batch_size: int,
     num_betas: int = 10,
@@ -257,7 +236,7 @@ def compute_static_ground_offset_height(
 
 
 @torch.no_grad()
-def run_inference(hparams, all_betas) -> None:
+def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
     ckpt = hparams.RESUME_CKPT
     if ckpt is None:
         raise ValueError("No checkpoint provided: set RESUME_CKPT in the config")
@@ -310,8 +289,6 @@ def run_inference(hparams, all_betas) -> None:
     logger.info(f"Running inference on all with {len(dataset)} samples")
     logger.info(f"Saving outputs to: {out_root}")
 
-    all_betas_norm = normalize_betas_np(all_betas)
-
     batch_idx = 0
 
     for _, batch in enumerate(tqdm(dataloader, desc="infer", dynamic_ncols=True)):
@@ -326,28 +303,27 @@ def run_inference(hparams, all_betas) -> None:
         # bs = identity_A.shape[0]
         T = identity_A.shape[1]
 
+        # NEW: one output file per motion keyid
+        motion_out = {
+            "male": {},
+            "neutral": {},
+            "female": {},
+        }
+
         for gender in [-1, 0, 1]:
 
             gender_str = _gender_value_to_str(gender)
+
             if gender_str not in smpl_cache:
                 smpl_cache[gender_str] = SMPLLayer(
                     model_type="smplh", gender=gender_str, device=device
                 )
+
             bm = smpl_cache[gender_str]
 
-            # accumulate 64 retargeted results (one per beta) for this gender
-            acc = {
-                "betas": [],
-                "gender": [],
-                "root_orient": [],
-                "pose_body": [],
-                "trans": [],
-                "offset_height": [],
-            }
+            for beta_key, beta_norm in all_betas_dict.items():
 
-            for i in range(all_betas_norm.shape[0]):
-
-                beta_norm = all_betas_norm[i].astype(np.float32)  # [10]
+                beta_norm = beta_norm.astype(np.float32)  # [10]
                 # we don't have to keep this, pred_dict_un["betas"] will get the unormalized value, equal to this one.
                 # beta_raw = all_betas[i].astype(np.float32)  # [10]
                 g = np.float32(gender)
@@ -405,27 +381,40 @@ def run_inference(hparams, all_betas) -> None:
                     safety_margin=0.002,
                 )  # scalar tensor on `device`
 
-                acc["offset_height"].append(offset_h.detach().cpu().squeeze(0))
+                motion_out[gender_str][beta_key] = {
+                    "betas": smpl_params_batched["betas"].detach().cpu().squeeze(0),
+                    "gender": smpl_params_batched["gender"].detach().cpu().squeeze(0),
+                    "root_orient": smpl_params_batched["root_orient"]
+                    .detach()
+                    .cpu()
+                    .squeeze(0),
+                    "pose_body": smpl_params_batched["pose_body"]
+                    .detach()
+                    .cpu()
+                    .squeeze(0),
+                    "trans": smpl_params_batched["trans"].detach().cpu().squeeze(0),
+                    "offset_height": offset_h.detach().cpu().squeeze(0),
+                }
 
-                # append (drop bs dim=1) -> [T, D]
-                for k in ("betas", "gender", "root_orient", "pose_body", "trans"):
-                    v = smpl_params_batched[k]
-                    acc[k].append(v.detach().cpu().squeeze(0))
+        # for k, v in motion_out.items():
+        #     # gender key
+        #     print(k)
+        #     # print(v.keys())
 
-            # stack 64 betas for this gender: [64, T, D]
-            # betas: torch.Size([64, 200, 10]); gender: torch.Size([64, 200, 1]); root_orient: torch.Size([64, 200, 3]); pose_body: torch.Size([64, 200, 63]); trans: torch.Size([64, 200, 3])
-            stacked = {k: torch.stack(vlist, dim=0) for k, vlist in acc.items()}
+        #     for k1, v1 in v.items():
+        #         # beta key
+        #         print(k1)
+        #         print(v1.keys())
 
-            # for k, v in stacked.items():
-            #     print(k)
-            #     print(v.shape)
+        # for k2, v2 in v1.items():
+        #     # features "betas", "gender", "root_orient", "pose_body", "trans", "offset_height"
+        #     print(k2)
+        #     # print(v2.shape)
 
-            stacked["text"] = batch["text"]
-
-            # when set batch_szie=1, keyids_A[0] is fine
-            save_path = os.path.join(out_root, f"{keyids_A[0]}_{gender}.pt")
-            # torch.save(stacked, save_path)
-            print(f"Saved: {save_path}")
+        # when set batch_szie=1, keyids_A[0] is fine
+        save_path = os.path.join(out_root, f"{keyids_A[0]}.pt")
+        torch.save(motion_out, save_path)
+        print(f"Saved: {save_path}")
 
         batch_idx += 1
 
@@ -440,21 +429,64 @@ if __name__ == "__main__":
     # Keep the same grid-search / config loading pathway as training for compatibility.
     hparams = run_grid_search_experiments(args, script="train.py")
 
-    num_betas: int = 10
-    batch_size: int = 64
-    per_dim_clip: float = 3.0
-    energy_max: float = 20.25
-    energy_min: float = 0.0
+    def load_all_betas_dict(pt_path: str) -> Dict[str, np.ndarray]:
+        """
+        Load betas dict saved as {betas_key: tensor/array shape [10]} and return
+        {betas_key: np.ndarray float32 shape [10]}.
+        """
+        if not os.path.exists(pt_path):
+            raise FileNotFoundError(f"all_betas.pt not found: {pt_path}")
 
-    rng = np.random.default_rng(46)
+        raw = torch.load(pt_path, map_location="cpu")
+        if not isinstance(raw, dict):
+            raise TypeError(f"Expected a dict in {pt_path}, got: {type(raw)}")
 
-    all_betas = sample_betas_energy_uniform(
-        batch_size=batch_size,
-        num_betas=num_betas,
-        per_dim_clip=per_dim_clip,
-        energy_max=energy_max,
-        energy_min=energy_min,
-        rng=rng,
-    )
+        betas_dict: Dict[str, np.ndarray] = {}
+        for k, v in raw.items():
+            key = str(k)
+            if torch.is_tensor(v):
+                v = v.detach().cpu().numpy()
+            v = np.asarray(v, dtype=np.float32)
+            if v.shape != (10,):
+                raise ValueError(
+                    f"Betas for key={key} must be shape (10,), got {v.shape}"
+                )
+            betas_dict[key] = v
 
-    run_inference(hparams, all_betas)
+        return betas_dict
+
+    def normalize_all_betas_dict(
+        all_betas_dict: Dict[str, np.ndarray],
+    ) -> Dict[str, np.ndarray]:
+        """
+        Convert {betas_key: beta_raw[10]} -> {betas_key: beta_norm[10]} using your
+        existing normalize_betas_np(...) function.
+
+        Returns float32 arrays of shape (10,).
+        """
+        out: Dict[str, np.ndarray] = {}
+        for betas_key, beta_raw in all_betas_dict.items():
+            beta_raw = np.asarray(beta_raw, dtype=np.float32)
+            if beta_raw.shape != (10,):
+                raise ValueError(
+                    f"Betas for key={betas_key} must be shape (10,), got {beta_raw.shape}"
+                )
+
+            beta_norm = normalize_betas_np(beta_raw)  # <- existing function in infer.py
+            beta_norm = np.asarray(beta_norm, dtype=np.float32)
+
+            if beta_norm.shape != (10,):
+                raise ValueError(
+                    f"Normalized betas for key={betas_key} must be shape (10,), got {beta_norm.shape}"
+                )
+
+            out[betas_key] = beta_norm
+
+        return out
+
+    betas_pt_path = os.path.join(os.path.dirname(__file__), "all_betas.pt")
+    all_betas_dict = load_all_betas_dict(betas_pt_path)
+
+    all_betas_dict = normalize_all_betas_dict(all_betas_dict)
+
+    run_inference(hparams, all_betas_dict)
