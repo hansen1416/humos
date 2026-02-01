@@ -304,11 +304,7 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
         T = identity_A.shape[1]
 
         # NEW: one output file per motion keyid
-        motion_out = {
-            "male": {},
-            "neutral": {},
-            "female": {},
-        }
+        motion_out = {"male": {}, "neutral": {}, "female": {}, "text": batch["text"]}
 
         for gender in [-1, 0, 1]:
 
@@ -406,10 +402,10 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
         #         print(k1)
         #         print(v1.keys())
 
-        # for k2, v2 in v1.items():
-        #     # features "betas", "gender", "root_orient", "pose_body", "trans", "offset_height"
-        #     print(k2)
-        #     # print(v2.shape)
+        #         for k2, v2 in v1.items():
+        #             # features "betas", "gender", "root_orient", "pose_body", "trans", "offset_height"
+        #             print(k2)
+        #             # print(v2.shape)
 
         # when set batch_szie=1, keyids_A[0] is fine
         save_path = os.path.join(out_root, f"{keyids_A[0]}.pt")
