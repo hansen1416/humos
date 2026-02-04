@@ -221,18 +221,26 @@ def compute_static_ground_offset_height(
 
     This mirrors the static grounding logic used in the visualizer, but returns
     the offset only (does not modify the motion).
+
+    joints shape is [1, 73, 3]
+    0-21: Body (Pelvis, Spine, ..., Ankles)
+    22-36: Left Hand
+    37-51: Right Hand
+    52-72: Extras (Nose, Eyes, Heels, Toes, etc.)
     """
-    verts, _ = bm(
+    verts, joints = bm(
         poses_body=pose_body,
         betas=betas,
         poses_root=root_orient,
         trans=trans,
     )  # verts: [1, V, 3] in world coordinates
 
-    h0_min = verts[0, :, up_axis].amin()
-    target = verts.new_tensor(0.0 + safety_margin)
+    verts_first_frame = verts[0]
+
+    h0_min = verts_first_frame[:, up_axis].amin()
+    target = verts_first_frame.new_tensor(0.0 + safety_margin)
     offset = target - h0_min
-    return offset
+    return offset, joints
 
 
 @torch.no_grad()
@@ -367,12 +375,12 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
                 # Static grounding offset (frame 0) for this (beta, gender) pair.
                 # We compute it from the SMPL-H mesh in world coordinates (trans applied),
                 # then store it as metadata without altering the motion itself.
-                offset_h = compute_static_ground_offset_height(
+                offset_h, joints = compute_static_ground_offset_height(
                     bm,
-                    betas=smpl_params_batched["betas"][:, 0, :],
-                    pose_body=smpl_params_batched["pose_body"][:, 0, :],
-                    root_orient=smpl_params_batched["root_orient"][:, 0, :],
-                    trans=smpl_params_batched["trans"][:, 0, :],
+                    betas=smpl_params_batched["betas"][0],
+                    pose_body=smpl_params_batched["pose_body"][0],
+                    root_orient=smpl_params_batched["root_orient"][0],
+                    trans=smpl_params_batched["trans"][0],
                     up_axis=2,
                     safety_margin=0.002,
                 )  # scalar tensor on `device`
@@ -390,6 +398,7 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
                     .squeeze(0),
                     "trans": smpl_params_batched["trans"].detach().cpu().squeeze(0),
                     "offset_height": offset_h.detach().cpu().squeeze(0),
+                    "joints_pos": joints.detach().cpu().squeeze(0),
                 }
 
         # for k, v in motion_out.items():
@@ -397,15 +406,17 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
         #     print(k)
         #     # print(v.keys())
 
-        #     for k1, v1 in v.items():
-        #         # beta key
-        #         print(k1)
-        #         print(v1.keys())
+        #     if k != "text":
 
-        #         for k2, v2 in v1.items():
-        #             # features "betas", "gender", "root_orient", "pose_body", "trans", "offset_height"
-        #             print(k2)
-        #             # print(v2.shape)
+        #         for k1, v1 in v.items():
+        #             # beta key
+        #             print(k1)
+        #             print(v1.keys())
+
+        #             for k2, v2 in v1.items():
+        #                 # features "betas", "gender", "root_orient", "pose_body", "trans", "offset_height", "joints_pos"
+        #                 print(k2)
+        #                 print(v2.shape)
 
         # when set batch_szie=1, keyids_A[0] is fine
         save_path = os.path.join(out_root, f"{keyids_A[0]}.pt")
