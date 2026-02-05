@@ -622,19 +622,77 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
                     trans=trans,  # (200,3)
                 )
 
+                joints_pos = joints.detach().cpu().squeeze(0)
+                joints_pos = joints_pos[:, :22, :].contiguous()
+
+                pose_body_21 = pose_body.reshape(T, 21, 3).contiguous()
+                dof_vel_21 = dof_vel.reshape(T, 21, 3).contiguous()
+
+                # todo, we need to pad joints_pos, pose_body_21, dof_vel_21
+                T = pose_body_21.shape[0]  # or len(trans), etc.
+
+                # 1. joints_pos: keep 22 (root + 21 body), or pad → 24 if downstream strictly wants SMPL 24-joint FK
+                #    → most motion diffusion / ASE / HumanML3D-style use 22 → no padding needed here
+                #    If you really need 24:
+                joints_pos_padded = torch.cat(
+                    [
+                        joints_pos,  # (T, 22, 3)
+                        torch.zeros(
+                            T, 2, 3, dtype=joints_pos.dtype, device=joints_pos.device
+                        ),
+                    ],
+                    dim=1,
+                )  # → (T, 24, 3)
+
+                # 2. pose_body: from 21 → 23 joints (add zero rotation for left & right hand roots)
+                pose_body_23 = torch.cat(
+                    [
+                        pose_body_21,  # (T, 21, 3)
+                        torch.zeros(
+                            T,
+                            2,
+                            3,
+                            dtype=pose_body_21.dtype,
+                            device=pose_body_21.device,
+                        ),
+                    ],
+                    dim=1,
+                )  # → (T, 23, 3)
+
+                # 3. dof_vel: same as pose_body
+                dof_vel_23 = torch.cat(
+                    [
+                        dof_vel_21,  # (T, 21, 3)
+                        torch.zeros(
+                            T, 2, 3, dtype=dof_vel_21.dtype, device=dof_vel_21.device
+                        ),
+                    ],
+                    dim=1,
+                )  # → (T, 23, 3)
+
                 motion_out[gender_str][beta_key] = {
                     "betas": smpl_params_batched["betas"].detach().cpu().squeeze(0),
                     "gender": smpl_params_batched["gender"].detach().cpu().squeeze(0),
                     "root_orient": root_orient,
-                    "pose_body": pose_body,
+                    "pose_body": pose_body_23,
                     "trans": trans,
                     "offset_height": offset_h.detach().cpu().squeeze(0),
-                    "joints_pos": joints.detach().cpu().squeeze(0),
+                    "joints_pos": joints_pos_padded,
                     "root_vel": root_vel,
                     "root_ang_vel": root_ang_vel,
-                    "dof_vel": dof_vel,
+                    "dof_vel": dof_vel_23,
                 }
 
+        # # betas:        torch.Size([200, 10])
+        # # gender:       torch.Size([200, 1])
+        # # root_orient:  torch.Size([200, 3])
+        # # pose_body:    torch.Size([200, 23, 3])
+        # # trans:        torch.Size([200, 3])
+        # # offset_height:torch.Size([])
+        # # joints_pos:   torch.Size([200, 22, 3])
+        # # root_vel:     torch.Size([200, 3])
+        # # root_ang_vel: torch.Size([200, 3])
+        # # dof_vel:      torch.Size([200, 23, 3])
         # for k, v in motion_out.items():
         #     # gender key
         #     print(k)
