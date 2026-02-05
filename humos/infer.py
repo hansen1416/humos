@@ -29,6 +29,233 @@ from humos.utils.config import parse_args, run_grid_search_experiments
 from humos.utils.mesh_utils import smplh_breakdown
 
 
+# ======================================================================================
+# ASE-matching velocity computation for HUMOS outputs
+# --------------------------------------------------------------------------------------
+# You said your HUMOS outputs have:
+#   root_orient: (T, 3)   axis-angle (rotation vector) of the root
+#   pose_body:   (T, 63)  axis-angle for 21 body joints (21*3)
+#   trans:       (T, 3)   global root translation
+#
+# ASE reference (your uploaded /mnt/data/motion_lib_base.py):
+#   - dof_vel is computed from *local joint quaternions* with:
+#       diff_q = quat_mul(quat_conjugate(q_t), q_{t+1})
+#       angle, axis = quat_to_angle_axis(diff_q)
+#       omega = axis * angle / dt
+#       drop root joint (index 0), flatten
+#     See: local_rotation_to_dof_vel() and compute_motion_dof_vels()
+#
+#   - root_vel and root_ang_vel (in get_motion_state) are taken as the
+#     rigid-body-0 entries of global velocity / global angular velocity arrays.
+#     For the root joint, local==global rotation, so we can compute root_ang_vel
+#     the same way from root quaternions (forward-diff + last-frame pad).
+#
+# This function produces:
+#   root_vel:      (T, 3)
+#   root_ang_vel:  (T, 3)
+#   dof_vel:       (T, (J-1)*3)  where J = 1 + pose_body_joints = 22, so (J-1)*3 = 63
+# ======================================================================================
+
+
+def _axis_angle_to_quat_xyzw(rotvec: torch.Tensor) -> torch.Tensor:
+    """
+    Convert axis-angle (rotation vector) to quaternion in (x, y, z, w) order.
+
+    rotvec: (..., 3) where magnitude is the rotation angle in radians.
+    return: (..., 4) quaternion (x,y,z,w)
+
+    Notes:
+    - This matches IsaacGym / ASE torch_utils convention (x,y,z,w).
+    - For very small angles, returns identity-like quaternions smoothly.
+    """
+    angle = torch.linalg.norm(rotvec, dim=-1, keepdim=True)  # (...,1)
+    half = 0.5 * angle
+    # Avoid division by 0 for tiny angles:
+    axis = rotvec / angle.clamp_min(1e-8)
+    sin_half = torch.sin(half)
+    xyz = axis * sin_half
+    w = torch.cos(half)
+    return torch.cat([xyz, w], dim=-1)
+
+
+def _quat_conjugate_xyzw(q: torch.Tensor) -> torch.Tensor:
+    """Quaternion conjugate for (x,y,z,w)."""
+    return torch.cat([-q[..., :3], q[..., 3:4]], dim=-1)
+
+
+def _quat_mul_xyzw(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
+    """
+    Hamilton product for quaternions in (x,y,z,w).
+    """
+    x1, y1, z1, w1 = q1.unbind(dim=-1)
+    x2, y2, z2, w2 = q2.unbind(dim=-1)
+    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
+    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
+    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+    return torch.stack([x, y, z, w], dim=-1)
+
+
+def _quat_to_angle_axis_xyzw(q: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Convert quaternion (x,y,z,w) to (angle, axis).
+
+    Returns:
+      angle: (...,)
+      axis:  (..., 3)
+
+    ASE uses torch_utils.quat_to_angle_axis(); this is a compatible implementation:
+    - Normalize q
+    - Enforce shortest-arc (w>=0) so angle is in [0, pi]
+    """
+    q = q / torch.linalg.norm(q, dim=-1, keepdim=True).clamp_min(1e-8)
+
+    # Enforce shortest arc: if w<0, flip quaternion sign (represents same rotation).
+    # This ensures the angle we compute is <= pi (matches typical IsaacGym utilities).
+    w = q[..., 3:4]
+    sign = torch.where(w < 0.0, -torch.ones_like(w), torch.ones_like(w))
+    q = q * sign
+
+    xyz = q[..., :3]
+    w = q[..., 3:4].clamp(-1.0, 1.0)
+
+    sin_half = torch.linalg.norm(xyz, dim=-1, keepdim=True)  # (...,1)
+    angle = 2.0 * torch.atan2(sin_half, w)  # (...,1)
+
+    # axis = xyz / sin_half; handle tiny sin_half
+    axis = xyz / sin_half.clamp_min(1e-8)
+
+    # If angle is ~0, axis is arbitrary; return 0 axis for stability.
+    small = sin_half < 1e-8
+    axis = torch.where(small.expand_as(axis), torch.zeros_like(axis), axis)
+
+    return angle.squeeze(-1), axis
+
+
+def _forward_diff_pad_last(x: torch.Tensor, dt: float) -> torch.Tensor:
+    """
+    Forward finite difference with last-frame padding:
+      v[t] = (x[t+1]-x[t]) / dt for t=0..T-2
+      v[T-1] = v[T-2]
+    This matches the "append last" convention used in ASE compute_motion_dof_vels().
+    """
+    if x.shape[0] < 2:
+        return torch.zeros_like(x)
+    v = (x[1:] - x[:-1]) / dt
+    return torch.cat([v, v[-1:]], dim=0)
+
+
+def humos_to_ase_velocities(
+    root_orient_aa: torch.Tensor,  # (T,3) axis-angle
+    pose_body_aa: torch.Tensor,  # (T,63) axis-angle
+    trans: torch.Tensor,  # (T,3)
+    fps: float = 20,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Compute ASE-style velocities from HUMOS outputs.
+
+    Outputs:
+      root_vel:     (T,3)
+      root_ang_vel: (T,3)
+      dof_vel:      (T,(J-1)*3)  (here J=22 => 63)
+
+    Key ASE correspondence:
+      - ASE dof_vel uses local joint quats:
+          diff_q = conj(q_t) * q_{t+1}
+          omega  = axis(diff_q) * angle(diff_q) / dt
+        drop root joint, flatten. (see /mnt/data/motion_lib_base.py)
+      - For root_ang_vel, root is joint 0; local==global rotation, so we compute
+        it via the same quaternion differencing on root quats.
+      - root_vel is computed from root position; in ASE it’s body_vel[...,0,:].
+    """
+    assert root_orient_aa.ndim == 2 and root_orient_aa.shape[-1] == 3
+    assert pose_body_aa.ndim == 2 and pose_body_aa.shape[-1] % 3 == 0
+    assert trans.ndim == 2 and trans.shape[-1] == 3
+    assert root_orient_aa.shape[0] == pose_body_aa.shape[0] == trans.shape[0]
+
+    T = trans.shape[0]
+    dt = 1.0 / float(fps)
+
+    # -----------------------------
+    # 1) root_vel (ASE: body_vel[...,0,:])
+    # -----------------------------
+    # In ASE the root linear velocity is taken from "global_velocity" at body 0.
+    # For the root, that corresponds to finite-diff of the root translation.
+    root_vel = _forward_diff_pad_last(trans, dt)  # (T,3)
+
+    # -----------------------------
+    # 2) root_ang_vel (ASE: body_ang_vel[...,0,:])
+    # -----------------------------
+    # Compute from root orientation via quaternion differencing:
+    #   diff_q = conj(q_t) * q_{t+1}
+    #   omega  = axis*angle/dt
+    #
+    # This matches the style used in ASE's local_rotation_to_dof_vel().
+    q_root = _axis_angle_to_quat_xyzw(root_orient_aa)  # (T,4)
+
+    if T < 2:
+        root_ang_vel = torch.zeros((T, 3), device=trans.device, dtype=trans.dtype)
+    else:
+        diff_q = _quat_mul_xyzw(
+            _quat_conjugate_xyzw(q_root[:-1]), q_root[1:]
+        )  # (T-1,4)
+        diff_angle, diff_axis = _quat_to_angle_axis_xyzw(diff_q)  # (T-1,), (T-1,3)
+        root_ang_vel_step = (diff_axis * diff_angle.unsqueeze(-1)) / dt  # (T-1,3)
+        root_ang_vel = torch.cat(
+            [root_ang_vel_step, root_ang_vel_step[-1:]], dim=0
+        )  # (T,3)
+
+    # -----------------------------
+    # 3) dof_vel (ASE: dvs then dof_vel.view(B,-1))
+    # -----------------------------
+    # HUMOS pose_body is 21 joints (63 dims) in axis-angle.
+    # ASE expects local rotations array including root at index 0.
+    # We'll build local_rot_quat[t] = [root_quat, body_joint_quats...]
+    J_body = pose_body_aa.shape[1] // 3  # 21
+    J = 1 + J_body  # 22 total in this simplified view
+    pose_body_aa_reshaped = pose_body_aa.view(T, J_body, 3)  # (T,21,3)
+    q_body = _axis_angle_to_quat_xyzw(pose_body_aa_reshaped)  # (T,21,4)
+
+    local_rot = torch.cat([q_root.unsqueeze(1), q_body], dim=1)  # (T,22,4)
+
+    if T < 2:
+        dof_vel = torch.zeros((T, (J - 1) * 3), device=trans.device, dtype=trans.dtype)
+    else:
+        # Frame-wise forward diff, identical to ASE compute_motion_dof_vels():
+        #   for f in range(T-1):
+        #       diff_q = conj(local_rot[f]) * local_rot[f+1]
+        #       omega  = axis*angle/dt
+        #       take omega[1:] (drop root), flatten
+        diff_q = _quat_mul_xyzw(
+            _quat_conjugate_xyzw(local_rot[:-1]), local_rot[1:]
+        )  # (T-1,J,4)
+        diff_angle, diff_axis = _quat_to_angle_axis_xyzw(diff_q)  # (T-1,J), (T-1,J,3)
+        omega = (diff_axis * diff_angle.unsqueeze(-1)) / dt  # (T-1,J,3)
+
+        omega_no_root = omega[:, 1:, :]  # (T-1,J-1,3)
+        dof_vel_step = omega_no_root.reshape(T - 1, (J - 1) * 3)  # (T-1,(J-1)*3)
+
+        # ASE appends last frame to keep length T:
+        dof_vel = torch.cat([dof_vel_step, dof_vel_step[-1:]], dim=0)  # (T,(J-1)*3)
+
+    return root_vel, root_ang_vel, dof_vel
+
+
+# -----------------------
+# Example usage (your shapes):
+# -----------------------
+# fps = 20  # HUMOS pipeline typically uses 20Hz
+# root_vel, root_ang_vel, dof_vel = humos_to_ase_velocities(
+#     root_orient_aa=root_orient,   # (200,3)
+#     pose_body_aa=pose_body,       # (200,63)
+#     trans=trans,                  # (200,3)
+#     fps=fps,
+# )
+# root_vel:     (200,3)
+# root_ang_vel: (200,3)
+# dof_vel:      (200,63)
+
+
 def _to_device(x: Any, device: torch.device) -> Any:
     """Recursively move tensors in nested structures to `device`."""
     if torch.is_tensor(x):
@@ -385,20 +612,27 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
                     safety_margin=0.002,
                 )  # scalar tensor on `device`
 
+                root_orient = smpl_params_batched["root_orient"][0].detach().cpu()
+                pose_body = smpl_params_batched["pose_body"][0].detach().cpu()
+                trans = smpl_params_batched["trans"][0].detach().cpu()
+
+                root_vel, root_ang_vel, dof_vel = humos_to_ase_velocities(
+                    root_orient_aa=root_orient,  # (200,3)
+                    pose_body_aa=pose_body,  # (200,63)
+                    trans=trans,  # (200,3)
+                )
+
                 motion_out[gender_str][beta_key] = {
                     "betas": smpl_params_batched["betas"].detach().cpu().squeeze(0),
                     "gender": smpl_params_batched["gender"].detach().cpu().squeeze(0),
-                    "root_orient": smpl_params_batched["root_orient"]
-                    .detach()
-                    .cpu()
-                    .squeeze(0),
-                    "pose_body": smpl_params_batched["pose_body"]
-                    .detach()
-                    .cpu()
-                    .squeeze(0),
-                    "trans": smpl_params_batched["trans"].detach().cpu().squeeze(0),
+                    "root_orient": root_orient,
+                    "pose_body": pose_body,
+                    "trans": trans,
                     "offset_height": offset_h.detach().cpu().squeeze(0),
                     "joints_pos": joints.detach().cpu().squeeze(0),
+                    "root_vel": root_vel,
+                    "root_ang_vel": root_ang_vel,
+                    "dof_vel": dof_vel,
                 }
 
         # for k, v in motion_out.items():
@@ -417,6 +651,7 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
         #                 # features "betas", "gender", "root_orient", "pose_body", "trans", "offset_height", "joints_pos"
         #                 print(k2)
         #                 print(v2.shape)
+        # exit()
 
         # when set batch_szie=1, keyids_A[0] is fine
         save_path = os.path.join(out_root, f"{keyids_A[0]}.pt")
