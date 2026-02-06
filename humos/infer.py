@@ -670,7 +670,7 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
         # # pose_body:    torch.Size([200, 23, 3])
         # # trans:        torch.Size([200, 3])
         # # offset_height:torch.Size([])
-        # # joints_pos:   torch.Size([200, 22, 3])
+        # # joints_pos:   torch.Size([200, 24, 3])
         # # root_vel:     torch.Size([200, 3])
         # # root_ang_vel: torch.Size([200, 3])
         # # dof_vel:      torch.Size([200, 23, 3])
