@@ -211,12 +211,12 @@ def humos_to_ase_velocities(
     # HUMOS pose_body is 21 joints (63 dims) in axis-angle.
     # ASE expects local rotations array including root at index 0.
     # We'll build local_rot_quat[t] = [root_quat, body_joint_quats...]
-    J_body = pose_body_aa.shape[1] // 3  # 21
-    J = 1 + J_body  # 22 total in this simplified view
-    pose_body_aa_reshaped = pose_body_aa.view(T, J_body, 3)  # (T,21,3)
-    q_body = _axis_angle_to_quat_xyzw(pose_body_aa_reshaped)  # (T,21,4)
+    J_body = pose_body_aa.shape[1] // 3  # 23
+    J = 1 + J_body  # 24 total in this simplified view
+    pose_body_aa_reshaped = pose_body_aa.view(T, J_body, 3)  # (T,23,3)
+    q_body = _axis_angle_to_quat_xyzw(pose_body_aa_reshaped)  # (T,23,4)
 
-    local_rot = torch.cat([q_root.unsqueeze(1), q_body], dim=1)  # (T,22,4)
+    local_rot = torch.cat([q_root.unsqueeze(1), q_body], dim=1)  # (T,24,4)
 
     if T < 2:
         dof_vel = torch.zeros((T, (J - 1) * 3), device=trans.device, dtype=trans.dtype)
@@ -467,7 +467,12 @@ def compute_static_ground_offset_height(
     h0_min = verts_first_frame[:, up_axis].amin()
     target = verts_first_frame.new_tensor(0.0 + safety_margin)
     offset = target - h0_min
-    return offset, joints
+
+    # first 24: root + 23 body joints
+    # remaining 21: extra regressed points (not true kinematic joints)
+    body_joints = joints[:, :24, :]
+
+    return offset, body_joints
 
 
 @torch.no_grad()
@@ -547,7 +552,7 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
 
             if gender_str not in smpl_cache:
                 smpl_cache[gender_str] = SMPLLayer(
-                    model_type="smplh", gender=gender_str, device=device
+                    model_type="smpl", gender=gender_str, device=device
                 )
 
             bm = smpl_cache[gender_str]
@@ -599,22 +604,43 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
                 # trans: torch.Size([1, 200, 3])
                 smpl_params_batched = smplh_breakdown(pred_dict_un, fk=model.fk_male)
 
+                betas = smpl_params_batched["betas"][0].detach()
+                pose_body_smplh = smpl_params_batched["pose_body"][0].detach()
+                root_orient = smpl_params_batched["root_orient"][0].detach()
+                trans = smpl_params_batched["trans"][0].detach()
+
+                T = pose_body_smplh.shape[0]
+                pose_body_smplh = pose_body_smplh.reshape(T, 21, 3).contiguous()
+
+                # padd from smplh's [n, 21, 3] to smpl's [n, 23, 3]
+                pose_body = torch.cat(
+                    [
+                        pose_body_smplh,
+                        torch.zeros(
+                            T,
+                            2,
+                            3,
+                            dtype=pose_body_smplh.dtype,
+                            device=pose_body_smplh.device,
+                        ),
+                    ],
+                    dim=1,
+                )
+
+                pose_body = pose_body.reshape(T, -1).contiguous()
+
                 # Static grounding offset (frame 0) for this (beta, gender) pair.
                 # We compute it from the SMPL-H mesh in world coordinates (trans applied),
                 # then store it as metadata without altering the motion itself.
                 offset_h, joints = compute_static_ground_offset_height(
                     bm,
-                    betas=smpl_params_batched["betas"][0],
-                    pose_body=smpl_params_batched["pose_body"][0],
-                    root_orient=smpl_params_batched["root_orient"][0],
-                    trans=smpl_params_batched["trans"][0],
+                    betas=betas,
+                    pose_body=pose_body,
+                    root_orient=root_orient,
+                    trans=trans,
                     up_axis=2,
                     safety_margin=0.002,
                 )  # scalar tensor on `device`
-
-                root_orient = smpl_params_batched["root_orient"][0].detach().cpu()
-                pose_body = smpl_params_batched["pose_body"][0].detach().cpu()
-                trans = smpl_params_batched["trans"][0].detach().cpu()
 
                 root_vel, root_ang_vel, dof_vel = humos_to_ase_velocities(
                     root_orient_aa=root_orient,  # (200,3)
@@ -622,65 +648,20 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
                     trans=trans,  # (200,3)
                 )
 
-                joints_pos = joints.detach().cpu().squeeze(0)
-                joints_pos = joints_pos[:, :22, :].contiguous()
-
-                pose_body_21 = pose_body.reshape(T, 21, 3).contiguous()
-                dof_vel_21 = dof_vel.reshape(T, 21, 3).contiguous()
-
-                # todo, we need to pad joints_pos, pose_body_21, dof_vel_21
-                T = pose_body_21.shape[0]  # or len(trans), etc.
-
-                # 1. joints_pos: keep 22 (root + 21 body), or pad → 24 if downstream strictly wants SMPL 24-joint FK
-                #    → most motion diffusion / ASE / HumanML3D-style use 22 → no padding needed here
-                #    If you really need 24:
-                joints_pos_padded = torch.cat(
-                    [
-                        joints_pos,  # (T, 22, 3)
-                        torch.zeros(
-                            T, 2, 3, dtype=joints_pos.dtype, device=joints_pos.device
-                        ),
-                    ],
-                    dim=1,
-                )  # → (T, 24, 3)
-
-                # 2. pose_body: from 21 → 23 joints (add zero rotation for left & right hand roots)
-                pose_body_23 = torch.cat(
-                    [
-                        pose_body_21,  # (T, 21, 3)
-                        torch.zeros(
-                            T,
-                            2,
-                            3,
-                            dtype=pose_body_21.dtype,
-                            device=pose_body_21.device,
-                        ),
-                    ],
-                    dim=1,
-                )  # → (T, 23, 3)
-
-                # 3. dof_vel: same as pose_body
-                dof_vel_23 = torch.cat(
-                    [
-                        dof_vel_21,  # (T, 21, 3)
-                        torch.zeros(
-                            T, 2, 3, dtype=dof_vel_21.dtype, device=dof_vel_21.device
-                        ),
-                    ],
-                    dim=1,
-                )  # → (T, 23, 3)
+                pose_body = pose_body.reshape(T, 23, 3).contiguous()
+                dof_vel = dof_vel.reshape(T, 23, 3).contiguous()
 
                 motion_out[gender_str][beta_key] = {
                     "betas": smpl_params_batched["betas"].detach().cpu().squeeze(0),
                     "gender": smpl_params_batched["gender"].detach().cpu().squeeze(0),
                     "root_orient": root_orient,
-                    "pose_body": pose_body_23,
+                    "pose_body": pose_body,
                     "trans": trans,
                     "offset_height": offset_h.detach().cpu().squeeze(0),
-                    "joints_pos": joints_pos_padded,
+                    "joints_pos": joints,
                     "root_vel": root_vel,
                     "root_ang_vel": root_ang_vel,
-                    "dof_vel": dof_vel_23,
+                    "dof_vel": dof_vel,
                 }
 
         # # betas:        torch.Size([200, 10])
