@@ -675,14 +675,14 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
         # # root_ang_vel: torch.Size([200, 3])
         # # dof_vel:      torch.Size([200, 23, 3])
         # for k, v in motion_out.items():
-        #     # gender key
+        #     # gender key and text: male, neutral, female, text
         #     print(k)
         #     # print(v.keys())
 
         #     if k != "text":
 
         #         for k1, v1 in v.items():
-        #             # beta key
+        #             # beta key, a random string represent a beta parameter
         #             print(k1)
         #             print(v1.keys())
 
