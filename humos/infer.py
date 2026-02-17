@@ -427,8 +427,6 @@ def _gender_value_to_str(g: float) -> str:
         return "male"
     if g == -1 or g == -1.0:
         return "female"
-    # HUMOS also uses 0 for neutral
-    return "neutral"
 
 
 @torch.no_grad()
@@ -544,9 +542,9 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
         T = identity_A.shape[1]
 
         # NEW: one output file per motion keyid
-        motion_out = {"male": {}, "neutral": {}, "female": {}, "text": batch["text"]}
+        motion_out = {"male": {}, "female": {}, "text": batch["text"]}
 
-        for gender in [-1, 0, 1]:
+        for gender in [-1, 1]:
 
             gender_str = _gender_value_to_str(gender)
 
@@ -699,7 +697,7 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
 
         batch_idx += 1
 
-        if batch_idx > 10:
+        if batch_idx > 1:
             break
 
     logger.info("Done.")
