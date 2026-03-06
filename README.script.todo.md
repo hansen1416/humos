@@ -13,3 +13,8 @@
 - Select high-quality results and integrate them into the imitation learning training loop.
 
 - check the musk, make sure every frame is valid
+
+
+-----------------
+
+`python humos/infer.py --cfg humos/configs/cfg_template_test.yml`

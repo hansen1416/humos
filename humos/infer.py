@@ -697,7 +697,7 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
 
         batch_idx += 1
 
-        if batch_idx > 1:
+        if batch_idx > 20:
             break
 
     logger.info("Done.")
