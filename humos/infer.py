@@ -527,9 +527,17 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
     logger.info(f"Running inference on all with {len(dataset)} samples")
     logger.info(f"Saving outputs to: {out_root}")
 
-    batch_idx = 0
+    # batch_idx = 0
 
     for _, batch in enumerate(tqdm(dataloader, desc="infer", dynamic_ncols=True)):
+        keyid = batch["keyid"][0]
+        save_path = os.path.join(out_root, f"{keyid}.pt")
+
+        # skip if already done
+        if os.path.exists(save_path):
+            print(f"Skip existing: {save_path}")
+            continue
+
         # we are setting the btach size = 1
         batch = _to_device(batch, device)
 
@@ -695,10 +703,10 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
         torch.save(motion_out, save_path)
         print(f"Saved: {save_path}")
 
-        batch_idx += 1
+        # batch_idx += 1
 
-        if batch_idx > 20:
-            break
+        # if batch_idx > 20:
+        #     break
 
     logger.info("Done.")
 
