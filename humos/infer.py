@@ -13,8 +13,10 @@ Notes
 
 from __future__ import annotations
 
+import io
 import os
 from typing import Any, Dict, Sequence
+import subprocess
 
 import torch
 from torch.utils.data import DataLoader, ConcatDataset
@@ -27,6 +29,20 @@ from humos.src.data.text_motion import TextMotionDataset
 from humos.src.initialize import initialize_dataloaders, initialize_model
 from humos.utils.config import parse_args, run_grid_search_experiments
 from humos.utils.mesh_utils import smplh_breakdown
+
+RCLONE_REMOTE_DIR = os.environ.get("HUMOS_RCLONE_OUT", "gdrive:humos_output")
+
+
+def save_torch_to_rclone(obj, remote_path: str):
+    buf = io.BytesIO()
+    torch.save(obj, buf)
+    data = buf.getvalue()
+
+    subprocess.run(
+        ["rclone", "rcat", remote_path],
+        input=data,
+        check=True,
+    )
 
 
 # ======================================================================================
@@ -699,9 +715,14 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
         # exit()
 
         # when set batch_szie=1, keyids_A[0] is fine
-        save_path = os.path.join(out_root, f"{keyids_A[0]}.pt")
-        torch.save(motion_out, save_path)
-        print(f"Saved: {save_path}")
+        # save_path = os.path.join(out_root, f"{keyids_A[0]}.pt")
+        # torch.save(motion_out, save_path)
+
+        remote_name = f"{keyids_A[0]}.pt"
+        remote_path = f"{RCLONE_REMOTE_DIR}/{remote_name}"
+        save_torch_to_rclone(motion_out, remote_path)
+
+        print(f"Saved: {remote_path}")
 
         # batch_idx += 1
 
