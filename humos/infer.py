@@ -17,6 +17,7 @@ import io
 import os
 from typing import Any, Dict, Sequence
 import subprocess
+from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader, ConcatDataset
@@ -43,6 +44,50 @@ def save_torch_to_rclone(obj, remote_path: str):
         input=data,
         check=True,
     )
+
+
+def build_remote_name_cache(
+    mount_root: Path,
+    cache_file: Path,
+    *,
+    force_refresh: bool = False,
+) -> set[str]:
+    """
+    Build a cache of filenames that already exist under the mounted output dir.
+
+    Assumes your remote layout is flat:
+        gdrive:humos_output/<keyid>.pt
+    mirrored as:
+        /mnt/gdrive_humos_output/<keyid>.pt
+    """
+    if cache_file.exists() and not force_refresh:
+        with cache_file.open("r", encoding="utf-8") as f:
+            return {line.strip() for line in f if line.strip()}
+
+    if not mount_root.exists():
+        logger.warning(f"Mount root does not exist: {mount_root}")
+        return set()
+
+    names = set()
+    with os.scandir(mount_root) as it:
+        for entry in it:
+            if entry.is_file() and entry.name.endswith(".pt"):
+                names.add(entry.name)
+
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    tmp_file = cache_file.with_suffix(cache_file.suffix + ".tmp")
+    with tmp_file.open("w", encoding="utf-8") as f:
+        for name in sorted(names):
+            f.write(name + "\n")
+    tmp_file.replace(cache_file)
+
+    logger.info(f"Indexed {len(names)} existing remote files from mount: {mount_root}")
+    return names
+
+
+def append_remote_name_cache(cache_file: Path, name: str) -> None:
+    with cache_file.open("a", encoding="utf-8") as f:
+        f.write(name + "\n")
 
 
 def rclone_remote_exists(remote_path: str) -> bool:
@@ -569,21 +614,27 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
     # batch_idx = 0
 
     for _, batch in enumerate(tqdm(dataloader, desc="infer", dynamic_ncols=True)):
-        keyid = batch["keyid"][0]
-        save_path = os.path.join(out_root, f"{keyid}.pt")
 
-        # skip if already done
-        if os.path.exists(save_path):
-            print(f"Skip existing: {save_path}")
-            continue
+        RCLONE_MOUNT_ROOT = Path(
+            os.environ.get("HUMOS_MOUNT_ROOT", "/mnt/gdrive_humos_output")
+        )
+        REMOTE_INDEX_CACHE = Path(
+            os.environ.get("HUMOS_REMOTE_INDEX_CACHE", "./remote_index.txt")
+        )
+
+        existing_remote_names = build_remote_name_cache(
+            RCLONE_MOUNT_ROOT,
+            REMOTE_INDEX_CACHE,
+            force_refresh=False,
+        )
 
         keyids_A = batch["keyid"]  # list-like, length = bs
 
         remote_name = f"{keyids_A[0]}.pt"
         remote_path = f"{RCLONE_REMOTE_DIR}/{remote_name}"
 
-        if rclone_remote_exists(remote_path):
-            print(f"Skip existing remote: {remote_path}")
+        if remote_name in existing_remote_names:
+            print(f"Skip existing remote (cached): {remote_path}")
             continue
 
         # we are setting the btach size = 1
@@ -745,13 +796,10 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
         #                 print(v2.shape)
         # exit()
 
-        # when set batch_szie=1, keyids_A[0] is fine
-        # save_path = os.path.join(out_root, f"{keyids_A[0]}.pt")
-        # torch.save(motion_out, save_path)
-
-        remote_name = f"{keyids_A[0]}.pt"
-        remote_path = f"{RCLONE_REMOTE_DIR}/{remote_name}"
         save_torch_to_rclone(motion_out, remote_path)
+
+        existing_remote_names.add(remote_name)
+        append_remote_name_cache(REMOTE_INDEX_CACHE, remote_name)
 
         print(f"Saved: {remote_path}")
 
