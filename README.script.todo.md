@@ -18,3 +18,9 @@
 -----------------
 
 `python humos/infer.py --cfg humos/configs/cfg_template_test.yml`
+
+
+--------------
+
+
+rclone mount gdrive:humos_output /mnt/gdrive_humos_output --read-only --vfs-cache-mode off --buffer-size 40M -vv
