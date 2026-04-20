@@ -45,6 +45,29 @@ def save_torch_to_rclone(obj, remote_path: str):
     )
 
 
+def rclone_remote_exists(remote_path: str) -> bool:
+    proc = subprocess.run(
+        ["rclone", "lsjson", remote_path, "--stat"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if proc.returncode == 0:
+        return True
+
+    err = (proc.stderr or "").lower()
+    if (
+        "not found" in err
+        or "does not exist" in err
+        or "directory not found" in err
+        or "object not found" in err
+    ):
+        return False
+
+    raise RuntimeError(f"rclone lsjson failed for {remote_path}: {proc.stderr.strip()}")
+
+
 # ======================================================================================
 # ASE-matching velocity computation for HUMOS outputs
 # --------------------------------------------------------------------------------------
@@ -554,10 +577,18 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
             print(f"Skip existing: {save_path}")
             continue
 
+        keyids_A = batch["keyid"]  # list-like, length = bs
+
+        remote_name = f"{keyids_A[0]}.pt"
+        remote_path = f"{RCLONE_REMOTE_DIR}/{remote_name}"
+
+        if rclone_remote_exists(remote_path):
+            print(f"Skip existing remote: {remote_path}")
+            continue
+
         # we are setting the btach size = 1
         batch = _to_device(batch, device)
 
-        keyids_A = batch["keyid"]  # list-like, length = bs
         motion_x_dict_A = model.construct_input(batch["motion_x_dict"])
         mask_A = motion_x_dict_A["mask"]
         identity_A = motion_x_dict_A["identity"]
