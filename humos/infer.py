@@ -14,6 +14,7 @@ Notes
 from __future__ import annotations
 
 import io
+import json
 import os
 from typing import Any, Dict, Sequence
 import subprocess
@@ -558,7 +559,12 @@ def compute_static_ground_offset_height(
 
 
 @torch.no_grad()
-def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
+def run_inference(
+    hparams,
+    all_betas_dict: Dict[str, np.ndarray],
+    local_out_dir: str = None,
+    keyids_filter: set = None,
+) -> None:
     ckpt = hparams.RESUME_CKPT
     if ckpt is None:
         raise ValueError("No checkpoint provided: set RESUME_CKPT in the config")
@@ -575,6 +581,14 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
     datasets = [
         get_text_motion_dataset(hparams, split=s) for s in ["train", "val", "test"]
     ]
+    if keyids_filter is not None:
+        for ds in datasets:
+            ds.keyids = [k for k in ds.keyids if k in keyids_filter]
+        found = sum(len(ds.keyids) for ds in datasets)
+        logger.info(
+            f"Restricted to {found}/{len(keyids_filter)} requested keyids "
+            f"(across train/val/test splits combined)"
+        )
     dataset = ConcatDataset(datasets)
 
     collate_fn = getattr(datasets[0], "collate_fn", None)
@@ -613,29 +627,35 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
 
     # batch_idx = 0
 
-    for _, batch in enumerate(tqdm(dataloader, desc="infer", dynamic_ncols=True)):
-
+    # Build remote cache once before the loop (only needed in remote mode)
+    if local_out_dir is None:
         RCLONE_MOUNT_ROOT = Path(
             os.environ.get("HUMOS_MOUNT_ROOT", "/mnt/gdrive_humos_output")
         )
         REMOTE_INDEX_CACHE = Path(
             os.environ.get("HUMOS_REMOTE_INDEX_CACHE", "./remote_index.txt")
         )
-
         existing_remote_names = build_remote_name_cache(
             RCLONE_MOUNT_ROOT,
             REMOTE_INDEX_CACHE,
             force_refresh=False,
         )
 
+    for _, batch in enumerate(tqdm(dataloader, desc="infer", dynamic_ncols=True)):
+
         keyids_A = batch["keyid"]  # list-like, length = bs
-
         remote_name = f"{keyids_A[0]}.pt"
-        remote_path = f"{RCLONE_REMOTE_DIR}/{remote_name}"
 
-        if remote_name in existing_remote_names:
-            print(f"Skip existing remote (cached): {remote_path}")
-            continue
+        if local_out_dir is not None:
+            local_path = os.path.join(local_out_dir, remote_name)
+            if os.path.exists(local_path):
+                print(f"Skip existing: {local_path}")
+                continue
+        else:
+            remote_path = f"{RCLONE_REMOTE_DIR}/{remote_name}"
+            if remote_name in existing_remote_names:
+                print(f"Skip existing remote (cached): {remote_path}")
+                continue
 
         # we are setting the btach size = 1
         batch = _to_device(batch, device)
@@ -796,12 +816,14 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
         #                 print(v2.shape)
         # exit()
 
-        save_torch_to_rclone(motion_out, remote_path)
-
-        existing_remote_names.add(remote_name)
-        append_remote_name_cache(REMOTE_INDEX_CACHE, remote_name)
-
-        print(f"Saved: {remote_path}")
+        if local_out_dir is not None:
+            torch.save(motion_out, local_path)
+            print(f"Saved: {local_path}")
+        else:
+            save_torch_to_rclone(motion_out, remote_path)
+            existing_remote_names.add(remote_name)
+            append_remote_name_cache(REMOTE_INDEX_CACHE, remote_name)
+            print(f"Saved: {remote_path}")
 
         # batch_idx += 1
 
@@ -812,6 +834,18 @@ def run_inference(hparams, all_betas_dict: Dict[str, np.ndarray]) -> None:
 
 
 if __name__ == "__main__":
+    import argparse as _argparse
+    import sys as _sys
+
+    # Parse and strip our custom args before parse_args() sees sys.argv,
+    # because the deco CLI rejects unrecognized arguments.
+    _parser = _argparse.ArgumentParser(add_help=False)
+    _parser.add_argument("--betas-file", default=None)
+    _parser.add_argument("--local-out-dir", default=None)
+    _parser.add_argument("--keyids-file", default=None)
+    _known, _remaining = _parser.parse_known_args()
+    _sys.argv = [_sys.argv[0]] + _remaining
+
     args = parse_args()
     # Keep the same grid-search / config loading pathway as training for compatibility.
     hparams = run_grid_search_experiments(args, script="train.py")
@@ -871,9 +905,21 @@ if __name__ == "__main__":
 
         return out
 
-    betas_pt_path = os.path.join(os.path.dirname(__file__), "all_betas.pt")
+    betas_pt_path = _known.betas_file or os.path.join(os.path.dirname(__file__), "all_betas.pt")
     all_betas_dict = load_all_betas_dict(betas_pt_path)
-
     all_betas_dict = normalize_all_betas_dict(all_betas_dict)
 
-    run_inference(hparams, all_betas_dict)
+    if _known.local_out_dir:
+        os.makedirs(_known.local_out_dir, exist_ok=True)
+
+    keyids_filter = None
+    if _known.keyids_file:
+        with open(_known.keyids_file, "r") as f:
+            keyids_filter = set(json.load(f).keys())
+
+    run_inference(
+        hparams,
+        all_betas_dict,
+        local_out_dir=_known.local_out_dir,
+        keyids_filter=keyids_filter,
+    )
